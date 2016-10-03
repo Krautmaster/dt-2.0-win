@@ -29,6 +29,7 @@
 #include "develop/imageop.h"      // for dt_iop_module_t, dt_iop_roi_t, dt_...
 #include "develop/imageop_math.h" // for FC, FCxtrans
 #include "develop/pixelpipe.h"    // for dt_dev_pixelpipe_type_t::DT_DEV_PI...
+#include "develop/tiling.h"
 #include "iop/iop_api.h"          // for dt_iop_params_t
 #include <glib/gi18n.h>           // for _
 #include <gtk/gtktypes.h>         // for GtkWidget
@@ -242,6 +243,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   cl_mem dev_coord = NULL;
   cl_mem dev_thresholds = NULL;
   cl_mem dev_colors = NULL;
+  cl_mem dev_xtrans = NULL;
 
   cl_int err = -999;
 
@@ -252,6 +254,8 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
 
   size_t origin[] = { 0, 0, 0 };
   size_t region[] = { width, height, 1 };
+
+  process_common_setup(self, piece);
 
   err = dt_opencl_enqueue_copy_image(devid, dev_in, dev_out, origin, origin, region);
   if(err != CL_SUCCESS) goto error;
@@ -332,6 +336,13 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
       break;
   }
 
+  if(filters == 9u)
+  {
+    dev_xtrans
+        = dt_opencl_copy_host_to_device_constant(devid, sizeof(image->buf_dsc.xtrans), (void *)image->buf_dsc.xtrans);
+    if(dev_xtrans == NULL) goto error;
+  }
+
   dev_thresholds = dt_opencl_copy_host_to_device_constant(devid, sizeof(unsigned int) * 4, (void *)d->threshold);
   if(dev_thresholds == NULL) goto error;
 
@@ -345,18 +356,29 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   dt_opencl_set_kernel_arg(devid, kernel, 6, sizeof(int), &raw_width);
   dt_opencl_set_kernel_arg(devid, kernel, 7, sizeof(int), &raw_height);
   dt_opencl_set_kernel_arg(devid, kernel, 8, sizeof(uint32_t), &filters);
-  dt_opencl_set_kernel_arg(devid, kernel, 9, sizeof(cl_mem), &dev_thresholds);
+  dt_opencl_set_kernel_arg(devid, kernel, 9, sizeof(cl_mem), &dev_xtrans);
+  dt_opencl_set_kernel_arg(devid, kernel, 10, sizeof(cl_mem), &dev_thresholds);
 
   if(dev->rawoverexposed.mode == DT_DEV_RAWOVEREXPOSED_MODE_MARK_CFA)
-    dt_opencl_set_kernel_arg(devid, kernel, 10, sizeof(cl_mem), &dev_colors);
+    dt_opencl_set_kernel_arg(devid, kernel, 11, sizeof(cl_mem), &dev_colors);
   else if(dev->rawoverexposed.mode == DT_DEV_RAWOVEREXPOSED_MODE_MARK_SOLID)
-    dt_opencl_set_kernel_arg(devid, kernel, 10, 4 * sizeof(float), color);
+    dt_opencl_set_kernel_arg(devid, kernel, 11, 4 * sizeof(float), color);
 
   err = dt_opencl_enqueue_kernel_2d(devid, kernel, sizes);
   if(err != CL_SUCCESS) goto error;
+
+  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
+  if(dev_colors != NULL) dt_opencl_release_mem_object(dev_colors);
+  if(dev_thresholds != NULL) dt_opencl_release_mem_object(dev_thresholds);
+  if(dev_coord != NULL) dt_opencl_release_mem_object(dev_coord);
+  if(coordbuf != NULL) dt_free_align(coordbuf);
+  if(dev_raw != NULL) dt_opencl_release_mem_object(dev_raw);
+  dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
+
   return TRUE;
 
 error:
+  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
   if(dev_colors != NULL) dt_opencl_release_mem_object(dev_colors);
   if(dev_thresholds != NULL) dt_opencl_release_mem_object(dev_thresholds);
   if(dev_coord != NULL) dt_opencl_release_mem_object(dev_coord);
@@ -367,6 +389,39 @@ error:
   return FALSE;
 }
 #endif
+
+void tiling_callback(struct dt_iop_module_t *self, struct dt_dev_pixelpipe_iop_t *piece,
+                     const dt_iop_roi_t *roi_in, const dt_iop_roi_t *roi_out,
+                     struct dt_develop_tiling_t *tiling)
+{
+  dt_develop_t *dev = self->dev;
+  const dt_image_t *const image = &(dev->image_storage);
+
+  // the module needs access to the full raw image which adds to the memory footprint
+  // on OpenCL devices. We take account in tiling->overhead.
+
+  dt_mipmap_buffer_t buf;
+  int raw_width = 0;
+  int raw_height = 0;
+
+  dt_mipmap_cache_get(darktable.mipmap_cache, &buf, image->id, DT_MIPMAP_FULL, DT_MIPMAP_BLOCKING, 'r');
+
+  if(buf.buf)
+  {
+    raw_width = buf.width;
+    raw_height = buf.height;
+  }
+
+  dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
+
+  tiling->factor = 2.5f;  // in + out + coordinates
+  tiling->maxbuf = 1.0f;
+  tiling->overhead = (size_t)raw_width * raw_height * sizeof(uint16_t);
+  tiling->overlap = 0;
+  tiling->xalign = 1;
+  tiling->yalign = 1;
+  return;
+}
 
 void commit_params(dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_t *pipe,
                    dt_dev_pixelpipe_iop_t *piece)
@@ -380,8 +435,6 @@ void commit_params(dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_
   if(image->flags & DT_IMAGE_4BAYER) piece->enabled = 0;
 
   if(image->buf_dsc.datatype != TYPE_UINT16 || !image->buf_dsc.filters) piece->enabled = 0;
-
-  if(image->buf_dsc.filters == 9u) piece->process_cl_ready = 0;
 }
 
 void init_global(dt_iop_module_so_t *module)
