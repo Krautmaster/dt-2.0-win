@@ -16,6 +16,9 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
+#ifdef __WIN32__
+#include <winsock2.h>
+#endif
 
 #include "common/darktable.h"
 #include "common/image.h"
