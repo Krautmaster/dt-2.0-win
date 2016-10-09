@@ -25,7 +25,11 @@
 
 namespace RawSpeed {
 
+#ifdef __WIN32__
+void ThrowRDE(const char* fmt, ...) __attribute__ ((format (gnu_printf, 1, 2)));
+#else
 void ThrowRDE(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
+#endif
 
 class RawDecoderException : public std::runtime_error
 {
