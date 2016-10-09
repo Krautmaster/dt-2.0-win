@@ -128,6 +128,10 @@ static void free_labels_list(gpointer data)
   g_list_free_full((GList *)data, g_free);
 }
 
+#ifdef ERROR
+#undef ERROR
+#endif
+
 #define ERROR                                                                                                     \
   {                                                                                                               \
     lineno = __LINE__;                                                                                            \
