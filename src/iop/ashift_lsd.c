@@ -143,6 +143,16 @@
 #include <float.h>
 //#include "lsd.h"
 
+/* undefine some values from dlgs.h */
+#ifdef __WIN32__
+# ifdef rad1
+# undef rad1
+# endif
+# ifdef rad2
+# undef rad2
+# endif
+#endif
+
 /** ln(10) */
 #ifndef M_LN10
 #define M_LN10 2.30258509299404568402
