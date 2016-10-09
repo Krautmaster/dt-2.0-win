@@ -119,7 +119,6 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
   if(!img->exif_inited) (void)dt_exif_read(img, filename);
 
 #ifdef __WIN32__
-  const size_t len = strlen(filename) + 1;
   wchar_t filen[PATH_MAX];
   mbstowcs(filen, filename, PATH_MAX);
   FileReader f(filen);
