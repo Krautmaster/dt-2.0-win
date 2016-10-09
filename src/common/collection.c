@@ -31,6 +31,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#ifdef __WIN32__
+#include "win/strptime.h"
+#endif
 
 #define SELECT_QUERY "SELECT DISTINCT * FROM %s"
 #define ORDER_BY_QUERY "ORDER BY %s"
