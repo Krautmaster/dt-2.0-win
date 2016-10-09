@@ -75,6 +75,9 @@
 #ifndef __WIN32__
 #include <sys/wait.h>
 #endif
+#ifdef __WIN32__
+#include "win/setenv.h"
+#endif
 #include <locale.h>
 #if defined(__SSE__)
 #include <xmmintrin.h>
