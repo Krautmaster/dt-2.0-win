@@ -1,6 +1,6 @@
 /*
     This file is part of darktable,
-    copyright (c) 2010 Henrik Andersson.
+    copyright (c) 2016 Roman Lebedev.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -15,16 +15,19 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef DT_CONTROL_JOBS_FILM_H
-#define DT_CONTROL_JOBS_FILM_H
 
-#include "common/film.h"
-#include "control/control.h"
-#include <inttypes.h>
+#ifndef DT_COMMON_COLOR_PICKER_H
+#define DT_COMMON_COLOR_PICKER_H
 
-dt_job_t *dt_film_import1_create(dt_film_t *film);
+struct dt_iop_buffer_dsc_t;
+struct dt_iop_roi_t;
+
+void dt_color_picker_helper(const struct dt_iop_buffer_dsc_t *dsc, const float *const pixel,
+                            const struct dt_iop_roi_t *roi, const int *const box, float *const picked_color,
+                            float *const picked_color_min, float *const picked_color_max);
 
 #endif
+
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
