@@ -29,6 +29,12 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 
+/* undefine some values from dlgs.h */
+#ifdef __WIN32__
+# ifdef rad10
+# undef rad10
+# endif
+#endif
 
 // this is the version of the modules parameters,
 // and includes version information about compile-time dt
