@@ -20,12 +20,12 @@
 #if defined __APPLE__ || defined _POSIX_C_SOURCE >= 1 || defined _XOPEN_SOURCE || defined _BSD_SOURCE        \
     || defined _SVID_SOURCE || defined _POSIX_SOURCE || defined __DragonFly__ || defined __FreeBSD__         \
     || defined __NetBSD__ || defined __OpenBSD__
-#include "darktable.h"
 #include <pwd.h>
-#include <sys/types.h>
-#include <unistd.h>
 #endif
 
+#include "darktable.h"
+#include <sys/types.h>
+#include <unistd.h>
 #include <sys/stat.h>
 
 #ifdef HAVE_CONFIG_H
