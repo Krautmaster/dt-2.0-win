@@ -24,6 +24,9 @@
 #include "control/conf.h"
 #include "control/control.h"
 #include <glib.h>
+#ifdef __WIN32__
+#include "win/getline.h"
+#endif
 
 gboolean dt_tag_new(const char *name, guint *tagid)
 {
