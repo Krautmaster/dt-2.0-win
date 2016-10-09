@@ -243,9 +243,9 @@ void *legacy_params(dt_imageio_module_format_t *self, const void *const old_para
   {
     enum dt_imageio_exr_pixeltype_t
     {
-      UINT = 0,      // unsigned int (32 bit)
+      UINT_ = 0,      // unsigned int (32 bit)  WIN32: UINT shadows typedef from minwindef.h
       HALF = 1,      // half (16 bit floating point)
-      FLOAT = 2,     // float (32 bit floating point)
+      FLOAT_ = 2,     // float (32 bit floating point)   WIN32: FLOAT shadows typedef from minwindef.h
       NUM_PIXELTYPES // number of different pixel types
     };               // copy of Imf::PixelType
 
