@@ -107,7 +107,13 @@ int main(int argc, const char* argv[])
     __AFL_INIT();
 #endif
 
+#ifdef __WIN32__
+    wchar_t filen[PATH_MAX];
+    mbstowcs(filen, (char *) argv[1], PATH_MAX);
+    FileReader f(filen);
+#else
     FileReader f((char *) argv[1]);
+#endif
 
     std::unique_ptr<FileMap> m(f.readFile());
 
