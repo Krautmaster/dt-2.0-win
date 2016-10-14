@@ -25,6 +25,10 @@
 #include "config.h"
 #define HAVE_GETPWNAM_R 1
 #endif
+#ifdef __WIN32__
+#include <sys/types.h>
+#include "config.h"
+#endif
 
 #ifdef HAVE_CONFIG_H
 #include <config.h>
