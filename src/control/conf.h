@@ -99,7 +99,7 @@ static inline void dt_conf_set_int(const char *name, int val)
 static inline void dt_conf_set_int64(const char *name, int64_t val)
 {
   dt_pthread_mutex_lock(&darktable.conf->mutex);
-  char *str = g_strdup_printf("%" PRId64, val);
+  char *str = g_strdup_printf("%lld", val);
   if(!dt_conf_is_still_overridden(name, str))
     g_hash_table_insert(darktable.conf->table, g_strdup(name), str);
   else
@@ -236,6 +236,11 @@ static inline void dt_conf_init(dt_conf_t *cf, const char *filename, GSList *ove
       read = fscanf(f, "%" STR(LINE_SIZE) "[^\n]\n", line);
       if(read > 0)
       {
+#ifdef __WIN32__
+        /* remove trailing CR if file has DOS/WIN-line-ending */
+        int  l  = strlen(line);
+        if (l >0 && line[l-1] =='\r') line[l-1] = 0;
+#endif
         char *c = line;
         char *end = line + strlen(line);
         while(*c != '=' && c < end) c++;
