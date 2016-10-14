@@ -28,7 +28,11 @@
 #include <gtk/gtk.h>
 #include <stdlib.h>
 
-
+#ifdef __WIN32__
+# ifdef rad10
+# undef rad10
+# endif
+#endif
 // this is the version of the modules parameters,
 // and includes version information about compile-time dt
 DT_MODULE_INTROSPECTION(2, dt_iop_spots_params_t)
