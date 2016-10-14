@@ -34,7 +34,11 @@ Installation of toolchain and framework
   
 - Install the following packages in msys2 with pacman -S ...
   mingw-w64-x86_64-gtk3
+<<<<<<< feb86ec8f46239f1952ddcbb4e9bfcf2c675c7fd
   mingw-w64-x86_64-exiv2
+=======
+  (mingw-w64-x86_64-exiv2)
+>>>>>>> windows: build instructions for windows port
   mingw-w64-x86_64-lcms2 mingw-w64-x86_64-lensfun
   mingw-w64-x86_64-openjpeg mingw-w64-x86_64-openjpeg2
   mingw-w64-x86_64-sqlite3  
@@ -78,7 +82,11 @@ Installation of toolchain and framework
   
 - create file dtwin.sh in /etc/profile.d :
   # set env for development of darktable-win
+<<<<<<< feb86ec8f46239f1952ddcbb4e9bfcf2c675c7fd
   export PATH=/opt/bin:/gcc/bin:/mingw64/bin:$PATH
+=======
+  export PATH=/opt/bin:/gcc/bin:/cmake/bin:/mingw64/bin:$PATH
+>>>>>>> windows: build instructions for windows port
   export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/lib:/opt/lib/pkgconfig:/opt/share/pkgconfig
   export ACLOCAL_FLAGS="-I/mingw64/share/aclocal -I/usr/share/aclocal"
   export ACLOCAL_PATH=/mingw64/share/aclocal:/usr/share/aclocal:$ACLOCAL_PATH
@@ -123,6 +131,16 @@ Installing osmgpsmap for geotagging
   AUTOMAKE=automake-1.15 AUTORECONF=autoreconf ./autogen.sh --prefix=/opt --build=x86_64-w64-mingw32
   make; make install
 
+<<<<<<< feb86ec8f46239f1952ddcbb4e9bfcf2c675c7fd
+=======
+Installing exiv2 from source
+----------------------------
+  mkdir /usr/src/gnome/exiv2-svn; 
+  cd /usr/src/gnome/exiv2-svn 
+  svn checkout svn://dev.exiv2.org/svn/trunk 
+  cd trunk 
+  make config 
+>>>>>>> windows: build instructions for windows port
 
 Building Darktable
 ------------------------------------------------
