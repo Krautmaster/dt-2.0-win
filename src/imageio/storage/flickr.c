@@ -16,6 +16,10 @@
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifdef __WIN32__
+#include <winsock2.h>
+#endif
+
 #include "dtgtk/button.h"
 #include "bauhaus/bauhaus.h"
 #include "gui/gtk.h"
