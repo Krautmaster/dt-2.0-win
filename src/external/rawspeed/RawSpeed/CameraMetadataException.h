@@ -25,7 +25,11 @@
 
 namespace RawSpeed {
 
+#if defined(__MINGW32__) || defined(__MINGW64__)
+void ThrowCME(const char* fmt, ...) __attribute__ ((format (gnu_printf, 1, 2)));
+#else
 void ThrowCME(const char* fmt, ...) __attribute__ ((format (printf, 1, 2)));
+#endif
 
 class CameraMetadataException :
   public std::runtime_error
