@@ -21,9 +21,14 @@
     || defined _SVID_SOURCE || defined _POSIX_SOURCE || defined __DragonFly__ || defined __FreeBSD__         \
     || defined __NetBSD__ || defined __OpenBSD__
 #include <pwd.h>
-#include <sys/types.h>
+#endif
+
 #include <unistd.h>
+#include <sys/types.h>
 #include "darktable.h"
+
+#ifdef __WIN32__
+#include <stdlib.h>
 #endif
 
 #include <sys/stat.h>
