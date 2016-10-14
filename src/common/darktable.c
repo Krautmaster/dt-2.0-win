@@ -77,6 +77,9 @@
 #ifndef __WIN32__
 #include <sys/wait.h>
 #endif
+#ifdef __WIN32__
+#include <win/setenv.h>
+#endif
 #include <locale.h>
 #include <xmmintrin.h>
 #ifdef HAVE_GRAPHICSMAGICK
@@ -242,7 +245,7 @@ gboolean dt_supported_image(const gchar *filename)
 static void strip_semicolons_from_keymap(const char *path)
 {
   char pathtmp[PATH_MAX] = { 0 };
-  FILE *fin = fopen(path, "r");
+  FILE *fin = fopen(path, "rb");
   FILE *fout;
   int i;
   int c = '\0';
@@ -1140,6 +1143,14 @@ void dt_print(dt_debug_thread_t thread, const char *msg, ...)
     vprintf(msg, ap);
     va_end(ap);
     fflush(stdout);
+#if defined(__WIN32__) 
+    // put message to debug console
+    char tmp[1024];
+    va_start(ap, msg);
+    vsnprintf( tmp, 1024, msg, ap);
+    va_end(ap);
+    OutputDebugStringA(tmp);
+#endif
   }
 }
 
