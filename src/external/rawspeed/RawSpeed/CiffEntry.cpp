@@ -69,6 +69,15 @@ unsigned int CiffEntry::getInt() {
   return (uint32)data[3] << 24 | (uint32)data[2] << 16 | (uint32)data[1] << 8 | (uint32)data[0];
 }
 
+unsigned short CiffEntry::getShort(ushort16 index){
+  if (type != CIFF_SHORT)
+    ThrowCPE("CIFF, getShort: Wrong type 0x%x encountered. Expected Short", type);  
+  if (index >count)
+    ThrowCPE("CIFF, getShort: Wrong index %d encountered. Entry count %d", index, count);
+  ushort16 data_index = (index -1)*2;
+  return ((ushort16)data[data_index+1] << 8) | (ushort16)data[data_index+0];
+}
+
 unsigned short CiffEntry::getShort() {
   if (type != CIFF_SHORT)
     ThrowCPE("CIFF, getShort: Wrong type 0x%x encountered. Expected Short", type);

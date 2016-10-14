@@ -64,6 +64,7 @@ public:
   virtual ~CiffEntry(void);
   virtual uint32 getInt();
   virtual ushort16 getShort();
+  virtual ushort16 getShort(ushort16 index);
   virtual const uint32* getIntArray();
   virtual const ushort16* getShortArray();
   string getString();
