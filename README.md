@@ -1,6 +1,8 @@
 [![icon](/data/pixmaps/idbutton.png?raw=true)](https://www.darktable.org/) darktable [![build status](https://travis-ci.org/darktable-org/darktable.svg?branch=darktable-2.0.x)](https://travis-ci.org/darktable-org/darktable)
 =========
 
+Inofficial version for windows-build with msys2 from jibaer. For instructions howto build see doc/Windows-msys2.txt
+
 darktable is an open source photography workflow application and raw developer. A virtual lighttable and darkroom for photographers. It manages your digital negatives in a database, lets you view them through a zoomable lighttable and enables you to develop raw images and enhance them.
 
 [https://www.darktable.org/](https://www.darktable.org/ "darktable homepage")
