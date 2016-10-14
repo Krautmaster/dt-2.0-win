@@ -38,7 +38,9 @@
 #include <strings.h>
 #include <stdlib.h>
 #include <assert.h>
-#ifndef __WIN32__
+#ifdef __WIN32__
+#include "win/glob.h"
+#else
 #include <glob.h>
 #endif
 #include <glib/gstdio.h>
@@ -663,7 +665,7 @@ void dt_image_read_duplicates(const uint32_t id, const char *filename)
     while(*c2 != '.' && c2 > filename) c2--;
     snprintf(c1 + strlen(*glob_pattern), pattern + sizeof(pattern) - c1 - strlen(*glob_pattern), "%s.xmp", c2);
 
-#ifdef __WIN32__
+#if 0 // def __WIN32__
     WIN32_FIND_DATA data;
     HANDLE handle = FindFirstFile(pattern, &data);
     if(handle != INVALID_HANDLE_VALUE)
@@ -762,6 +764,7 @@ uint32_t dt_image_import(const int32_t film_id, const char *filename, gboolean o
     g_free(ext);
     return 0;
   }
+
   int rc;
   uint32_t id = 0;
   // select from images; if found => return
@@ -912,8 +915,6 @@ uint32_t dt_image_import(const int32_t film_id, const char *filename, gboolean o
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 2, id);
   sqlite3_step(stmt);
   sqlite3_finalize(stmt);
-
-  // printf("[image_import] importing `%s' to img id %d\n", imgfname, id);
 
   // lock as shortly as possible:
   dt_image_t *img = dt_image_cache_get(darktable.image_cache, id, 'w');
