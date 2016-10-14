@@ -927,7 +927,7 @@ dt_imageio_retval_t dt_imageio_open(dt_image_t *img,               // non-const 
                                     dt_mipmap_buffer_t *buf)
 {
   /* first of all, check if file exists, don't bother to test loading if not exists */
-  if(!g_file_test(filename, G_FILE_TEST_IS_REGULAR)) return !DT_IMAGEIO_OK;
+  if(!g_file_test(filename, G_FILE_TEST_IS_REGULAR)) return DT_IMAGEIO_FILE_NOT_FOUND;
 
   dt_imageio_retval_t ret = DT_IMAGEIO_FILE_CORRUPTED;
 
