@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Building Darktable for WIN64 on WIN64 with MSYS2
 =================================================
 
@@ -178,3 +179,113 @@ Building Darktable
 
 - from msys start "/opt/darktable/bin/darktable.exe"  
 
+=======
+Building Darktable for WIN64 on WIN64 with MSYS2
+=================================================
+
+Preface
+--------
+All my work is based on the suggestions of Partha (Partha@Partha.com). In difference to
+his original suggestions i use as many as possible prebuild libs & pkgs from the MSYS2-project.
+
+For all of this work i use a dedicated externel disk (mounted as F:). 
+My directory layout for building DT is:
+
+F:\
+F:\msys64         	The installation of the MSYS2-Framework for 64bit
+F:\mingw64-620		The compiler mingw-gcc 6.2.0 64bit posix-seh
+F:\cmake		CMAKE 3.6
+F:\tars			The downloaded tar-files (libsoup, pugixml)
+F:\src                  The srctree
+F:\src\darktable	The DT-src from github
+F:\src\libsoup-2.53.2	The src of libsoup
+F:\src\pugixml-1.7	The src of pugixml
+F:\opt			Here goes all things that are build
+
+
+Installation of toolchain and framework
+---------------------------------------
+- install msys2-base-x86-64-20160921.tar.xz from https://sourceforge.net/projects/msys2/files/Base/x86_64/
+  
+  unpack msys2-base-x86-64-20160921.tar.xz
+  start msys2.exe and logout
+  start msys2.exe
+  update msys2-system : pacman -Syuu
+  
+- Install the following packages in msys2 with pacman -S ...
+  mingw-w64-x86_64-gtk3
+  mingw-w64-x86_64-exiv2 mingw-w64-x86_64-lcms2 mingw-w64-x86_64-lensfun
+  mingw-w64-x86_64-openjpeg mingw-w64-x86_64-openjpeg2
+  mingw-w64-x86_64-sqlite3  
+  mingw-m64-x86_64-openexr  
+  mingw-w64-x86_64-libwebp
+  mingw-w64-x86_64-graphicsmagick
+  mingw-w64-x86_64-libxslt
+  mingw-w64-x86_64-curl
+  mingw-w64-x86_64-poppler
+  mingw-w64-x86_64-pkg-config
+  mingw-w64-x86_64-diffutils
+  intltool
+  tar
+  git
+  
+- fix install of perl:
+  ln -s /usr/lib/perl5/core_perl/CORE/msys-perl5_22.dll /usr/bin/msys-perl5_22.dll
+  ln -s /usr/bin/perl.exe /usr/bin/perl5.22.1.exe
+  
+- fix the install of git:
+  ln -s /usr/lib/git-core/git-add.exe /usr/bin/git.exe
+  Even after this fix git is NOT fully usable. But enough for running the DT build
+  
+  For all git-ops like clone,commit,checkout,... i use sourcetree
+  
+- install x86_64-6.2.0-release-posix-seh-rt_v5-rev1.7z
+  from https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/6.2.0/threads-posix/seh/
+
+- install cmake 3.6 (https://cmake.org/files/v3.6/cmake-3.6.2-win64-x64.zip)
+
+- edit msys-fstab (F:\msys64\etc\fstab) add :
+  F:/cmake /cmake
+  F:/mingw64-620 /gcc
+  F:/src-m64 /usr/src
+  F:/opt-m64b /opt
+  F:/tars /usr/tars
+  
+- create file dtwin.sh in /etc/profile.d :
+  # set env for development of darktable-win
+  export PATH=/opt/bin:/gcc/bin:/cmake/bin:/mingw64/bin:$PATH
+  export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/lib:/opt/lib/pkgconfig:/opt/share/pkgconfig
+  export ACLOCAL_FLAGS="-I/opt/share/aclocal"
+  export ACLOCAL_PATH=/opt/share/aclocal:$ACLOCAL_PATH
+  export CMAKE_INCLUDE_PATH=/opt/include:/gcc/x86_64-w64-mingw32/include:/gcc/include:/mingw64/include:/usr/include
+  export CMAKE_LIBRARY_PATH=/opt/lib:/gcc/x86_64-w64-mingw32/lib:/gcc/lib:/mingw64/lib:/usr/lib
+
+- create 'symlink' for make.exe
+  $ ln -s /gcc/bin/mingw32-make.exe /gcc/bin/make.exe
+  
+- build and install libsoup 2.53.2 (http://ftp.gnome.org/pub/GNOME/sources/libsoup/2.53/libsoup-2.53.2.tar.xz)
+  
+  ./configure --prefix=/opt --build=x86_64-w64-mingw32 CFLAGS=-O3 --disable-tls-check --enable-introspection=no --enable-vala=no 
+  make; make install 
+
+- build and install pugixml 1.7 (http://github.com/zeux/pugixml/releases/download/v1.7/pugixml-1.7.tar.gz)
+
+  cd src 
+  g++ -shared pugixml.cpp -I./ -o libpugixml.dll 
+
+  Create an import library as well since it's not automatically created:
+  dlltool.exe -z pugixml.def --export-all-symbols libpugixml.dll 
+  delete all symbols that are not part of pugi 
+  dlltool.exe -D libpugixml.dll -d pugixml.def -l libpugixml.dll.a 
+  
+  copy files to finale place:
+  cp libpugixml.dll /opt/bin/ 
+  cp libpugixml.dll.a /opt/lib/ 
+  cp *.hpp /opt/include
+
+- build darktable
+
+  mkdir build
+  cd build
+  cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/opt/darktable -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_OPENCL=OFF -DUSE_GEO=OFF -DUSE_LUA=OFF -DCMAKE_EXE_LINKER_FLAGS=-Wl,-V -DCMAKE_CXX_FLAGS="-O3 -ffast-math -ftree-vectorize -static-libstdc++ -D_RELEASE -D_POSIX_THREAD_SAFE_FUNCTIONS" -DCMAKE_C_FLAGS="-O3 -ffast-math -ftree-vectorize -std=c99 -static-libstdc++ -D_RELEASE -D_POSIX_THREAD_SAFE_FUNCTIONS" ..
+>>>>>>> dbed7f56ae6e518bf21625b646c830a200a82116
