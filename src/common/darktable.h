@@ -229,7 +229,11 @@ extern const char dt_supported_extensions[];
 
 int dt_init(int argc, char *argv[], const int init_gui, lua_State *L);
 void dt_cleanup();
+#if defined(__MINGW32__) || defined(__MINGW64__)
+void dt_print(dt_debug_thread_t thread, const char *msg, ...) __attribute__((format(gnu_printf, 2, 3)));
+#else //  
 void dt_print(dt_debug_thread_t thread, const char *msg, ...) __attribute__((format(printf, 2, 3)));
+#endif // 
 void dt_gettime_t(char *datetime, size_t datetime_len, time_t t);
 void dt_gettime(char *datetime, size_t datetime_len);
 void *dt_alloc_align(size_t alignment, size_t size);
@@ -473,6 +477,11 @@ static inline size_t dt_get_total_memory()
   size_t length = sizeof(uint64_t);
   sysctl(mib, 2, (void *)&physical_memory, &length, (void *)NULL, 0);
   return physical_memory / 1024;
+#elif defined(__WIN32__)
+  MEMORYSTATUSEX statex;
+  statex.dwLength = sizeof (statex);
+  GlobalMemoryStatusEx (&statex);
+  return statex.ullTotalPhys >> 10;
 #else
   // assume 2GB until we have a better solution.
   fprintf(stderr, "Unknown memory size. Assuming 2GB\n");
