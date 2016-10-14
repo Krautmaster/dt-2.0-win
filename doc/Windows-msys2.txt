@@ -6,19 +6,21 @@ Preface
 All my work is based on the suggestions of Partha (Partha@Partha.com). In difference to
 his original suggestions i use as many as possible prebuild libs & pkgs from the MSYS2-project.
 
-For all of this work i use a dedicated externel disk (mounted as F:). 
+For all of this work i use a dedicated external disk (mounted as F:).  The drive should be NTFS.
 My directory layout for building DT is:
 
 F:\
 F:\msys64         	The installation of the MSYS2-Framework for 64bit
 F:\mingw64-620		The compiler mingw-gcc 6.2.0 64bit posix-seh
 F:\cmake		CMAKE 3.6
-F:\tars			The downloaded tar-files (libsoup, pugixml)
-F:\src                  The srctree
+F:\tars			The downloaded tar-files (libsoup, pugixml, osm-gps-map)
+F:\src                  The src-tree
 F:\src\darktable	The DT-src from github
 F:\src\libsoup-2.53.2	The src of libsoup
 F:\src\pugixml-1.7	The src of pugixml
+F:\src-m64\osm-gps-map-1.1.0	The src of osm-gpd-map
 F:\opt			Here goes all things that are build
+
 
 
 Installation of toolchain and framework
@@ -32,10 +34,11 @@ Installation of toolchain and framework
   
 - Install the following packages in msys2 with pacman -S ...
   mingw-w64-x86_64-gtk3
-  mingw-w64-x86_64-exiv2 mingw-w64-x86_64-lcms2 mingw-w64-x86_64-lensfun
+  (mingw-w64-x86_64-exiv2)
+  mingw-w64-x86_64-lcms2 mingw-w64-x86_64-lensfun
   mingw-w64-x86_64-openjpeg mingw-w64-x86_64-openjpeg2
   mingw-w64-x86_64-sqlite3  
-  mingw-m64-x86_64-openexr  
+  mingw-w64-x86_64-openexr  
   mingw-w64-x86_64-libwebp
   mingw-w64-x86_64-graphicsmagick
   mingw-w64-x86_64-libxslt
@@ -43,27 +46,31 @@ Installation of toolchain and framework
   mingw-w64-x86_64-poppler
   mingw-w64-x86_64-pkg-config
   mingw-w64-x86_64-diffutils
+  mingw-w64-x86_64-python2
+  mingw-w64-x86_64-cmake
   intltool
   tar
   git
+  patch
+  zip unzip
   
-- fix install of perl:
-  ln -s /usr/lib/perl5/core_perl/CORE/msys-perl5_22.dll /usr/bin/msys-perl5_22.dll
-  ln -s /usr/bin/perl.exe /usr/bin/perl5.22.1.exe
+- some fixes, if your build-drive is not NTFS
+
+  - fix install of perl:
+    ln -s /usr/lib/perl5/core_perl/CORE/msys-perl5_22.dll /usr/bin/msys-perl5_22.dll
+    ln -s /usr/bin/perl.exe /usr/bin/perl5.22.1.exe
+   
+  - fix the install of git:
+    ln -s /usr/lib/git-core/git-add.exe /usr/bin/git.exe
+    Even after this fix git is NOT fully usable. But enough for running the DT build
   
-- fix the install of git:
-  ln -s /usr/lib/git-core/git-add.exe /usr/bin/git.exe
-  Even after this fix git is NOT fully usable. But enough for running the DT build
-  
-  For all git-ops like clone,commit,checkout,... i use sourcetree
-  
-- install x86_64-6.2.0-release-posix-seh-rt_v5-rev1.7z
+    For all git-ops like clone,commit,checkout,... i use sourcetree
+
+    
+- install gcc 6.2.0 : x86_64-6.2.0-release-posix-seh-rt_v5-rev1.7z
   from https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/6.2.0/threads-posix/seh/
 
-- install cmake 3.6 (https://cmake.org/files/v3.6/cmake-3.6.2-win64-x64.zip)
-
 - edit msys-fstab (F:\msys64\etc\fstab) add :
-  F:/cmake /cmake
   F:/mingw64-620 /gcc
   F:/src-m64 /usr/src
   F:/opt-m64b /opt
@@ -73,13 +80,15 @@ Installation of toolchain and framework
   # set env for development of darktable-win
   export PATH=/opt/bin:/gcc/bin:/cmake/bin:/mingw64/bin:$PATH
   export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/lib:/opt/lib/pkgconfig:/opt/share/pkgconfig
-  export ACLOCAL_FLAGS="-I/opt/share/aclocal"
-  export ACLOCAL_PATH=/opt/share/aclocal:$ACLOCAL_PATH
-  export CMAKE_INCLUDE_PATH=/opt/include:/gcc/x86_64-w64-mingw32/include:/gcc/include:/mingw64/include:/usr/include
-  export CMAKE_LIBRARY_PATH=/opt/lib:/gcc/x86_64-w64-mingw32/lib:/gcc/lib:/mingw64/lib:/usr/lib
+  export ACLOCAL_FLAGS="-I/mingw64/share/aclocal -I/usr/share/aclocal"
+  export ACLOCAL_PATH=/mingw64/share/aclocal:/usr/share/aclocal:$ACLOCAL_PATH
+  export CMAKE_INCLUDE_PATH=/opt/include:/mingw64/include:/usr/include:/gcc/x86_64-w64-mingw32/include:/gcc/include
+  export CMAKE_LIBRARY_PATH=/opt/lib:/mingw64/lib:/usr/lib:/gcc/x86_64-w64-mingw32/lib:/gcc/lib
 
-- create 'symlink' for make.exe
-  $ ln -s /gcc/bin/mingw32-make.exe /gcc/bin/make.exe
+ - restart msys2.exe
+ 
+ - create 'symlink' for make.exe
+   $ ln -s /gcc/bin/mingw32-make.exe /gcc/bin/make.exe
   
 - build and install libsoup 2.53.2 (http://ftp.gnome.org/pub/GNOME/sources/libsoup/2.53/libsoup-2.53.2.tar.xz)
   
@@ -89,20 +98,83 @@ Installation of toolchain and framework
 - build and install pugixml 1.7 (http://github.com/zeux/pugixml/releases/download/v1.7/pugixml-1.7.tar.gz)
 
   cd src 
-  g++ -shared pugixml.cpp -I./ -o libpugixml.dll 
-
-  Create an import library as well since it's not automatically created:
-  dlltool.exe -z pugixml.def --export-all-symbols libpugixml.dll 
-  delete all symbols that are not part of pugi 
-  dlltool.exe -D libpugixml.dll -d pugixml.def -l libpugixml.dll.a 
-  
-  copy files to finale place:
+  g++ -shared pugixml.cpp -I./ -o libpugixml.dll -Wl,--output-def -Wl,libpugixml.def -Wl,--out-implib -Wl,libpugixml.dll.a
   cp libpugixml.dll /opt/bin/ 
   cp libpugixml.dll.a /opt/lib/ 
   cp *.hpp /opt/include
+  
 
-- build darktable
+Installing osmgpsmap for geotagging
+-----------------------------------
+- install additional msys2 packages
+  mingw-w64-x86_64-gnome-common
+  mingw-w64-x86_64-gobject-introspection
+  automake
+  autoconf
+  gtk-doc
+  m4
+  
+- fix /usr/share/perl5/core_perl/file/path.pm
 
+  line 34 : my $Need_Stat_Check = !(($^O eq 'MSWin32') or ($^O eq 'msys'));
+  
+- build and install osmgpsmap-1.1.0 (https://github.com/nzjrs/osm-gps-map/archive/1.1.0.tar.gz)
+
+  AUTOMAKE=automake-1.15 AUTORECONF=autoreconf ./autogen.sh --prefix=/opt --build=x86_64-w64-mingw32
+  make; make install
+
+Installing exiv2 from source with support for unicode/widechar
+--------------------------------------------------------------
+  mkdir /usr/src/gnome/exiv2-svn; 
+  cd /usr/src/gnome/exiv2-svn 
+  svn checkout svn://dev.exiv2.org/svn/trunk 
+  cd trunk 
+
+- edit config/FindIconv.cmake
+
+  add after line 56
+	find_library(INTL_LIBRARY NAMES intl)
+
+	set(CMAKE_REQUIRED_LIBRARIES ${INTL_LIBRARY})
+  change line 64
+	set(ICONV_LIBRARIES ${ICONV_LIBRARY}) ->set(ICONV_LIBRARIES ${ICONV_LIBRARY} ${INTL_LIBRARY})
+
+
+- edit src/CMakeLists.txt
+  
+  add after line 316 : TARGET_LINK_LIBRARIES( exiv2 exiv2lib )
+	IF( ICONV_FOUND )
+    
+		TARGET_LINK_LIBRARIES( exiv2  ${ICONV_LIBRARIES} )
+
+	ENDIF( ICONV_FOUND )
+
+- edit CMakeLists.txt
+  
+  set option EXIV2_ENABLE_BUILD_PO to ON
+  set option EXIV2_ENABLE_WIN_UNICODE to ON
+  set option EXIV2_ENABLE_CURL to ON
+  set option EXIV2_ENABLE_SSH to ON
+  
+
+  mkdir build; cd build
+  cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/opt -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_EXE_LINKER_FLAGS=-Wl,-V -DCMAKE_C_FLAGS="-O3 -ffast-math -ftree-vectorize -std=c99 -static-libstdc++" ..
+  make; make install
+
+Building Darktable
+------------------------------------------------
+- get darktable from github-repo 
+
+  cd /usr/src
+  git clone https://github.com/jibaer/darktable.git
+  cd darktable
+  git checkout darktable-2.0.x-win
+
+- build
   mkdir build
   cd build
   cmake -G "MSYS Makefiles" -DCMAKE_INSTALL_PREFIX=/opt/darktable -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUSE_OPENCL=OFF -DUSE_GEO=OFF -DUSE_LUA=OFF -DCMAKE_EXE_LINKER_FLAGS=-Wl,-V -DCMAKE_CXX_FLAGS="-O3 -ffast-math -ftree-vectorize -static-libstdc++ -D_RELEASE -D_POSIX_THREAD_SAFE_FUNCTIONS" -DCMAKE_C_FLAGS="-O3 -ffast-math -ftree-vectorize -std=c99 -static-libstdc++ -D_RELEASE -D_POSIX_THREAD_SAFE_FUNCTIONS" ..
+  make; make install
+
+- from msys start "/opt/darktable/bin/darktable.exe"  
+
