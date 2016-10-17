@@ -66,7 +66,7 @@ typedef struct dt_lib_collect_t
   struct dt_lib_collect_params_t *params;
 } dt_lib_collect_t;
 
-typedef struct dt_lib_collect_params_rule_t 
+typedef struct dt_lib_collect_params_rule_t
 {
     uint32_t item : 16;
     uint32_t mode : 16;
@@ -422,12 +422,21 @@ static void _show_filmroll_present(GtkTreeViewColumn *column, GtkCellRenderer *r
 
 static GtkTreeStore *_folder_tree()
 {
+  GtkTreeIter first;
+
   /* initialize the tree store */
   sqlite3_stmt *stmt;
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
                               "select folder from film_rolls order by folder desc", -1, &stmt, NULL);
   GtkTreeStore *store = gtk_tree_store_new(DT_LIB_COLLECT_NUM_COLS, G_TYPE_STRING, G_TYPE_UINT, G_TYPE_STRING,
                                            G_TYPE_STRING, G_TYPE_INT, G_TYPE_BOOLEAN);
+
+#ifdef __WIN32__
+  // fake empty root entry
+  gtk_tree_store_insert(store, &first, NULL, 0);
+  gtk_tree_store_set(store, &first, DT_LIB_COLLECT_COL_TEXT, "", DT_LIB_COLLECT_COL_PATH, "",
+                           DT_LIB_COLLECT_COL_VISIBLE, TRUE, -1);
+#endif
 
   // initialize the model with the paths
   while(sqlite3_step(stmt) == SQLITE_ROW)
@@ -438,7 +447,12 @@ static GtkTreeStore *_folder_tree()
     GtkTreePath *root;
     char *folder = (char *)sqlite3_column_text(stmt, 0);
     if(folder == NULL) continue; // safeguard against degenerated db entries
+#ifdef __WIN32__
+    char **pch = g_strsplit(folder, "\\", -1);
+    current = first;
+#else
     char **pch = g_strsplit(folder, "/", -1);
+#endif
     gboolean found = FALSE;
 
     root = gtk_tree_path_new_first();
@@ -449,14 +463,21 @@ static GtkTreeStore *_folder_tree()
     while(pch[level] != NULL)
     {
       found = FALSE;
+#ifdef __WIN32__
+      int children = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(store), &current);
+#else
       int children = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(store), level > 0 ? &current : NULL);
+#endif
       /* find child with name, if not found create and continue */
       for(int k = 0; k < children; k++)
       {
+#ifdef __WIN32__
+        if(gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(store), &iter, &current, k))
+#else
         if(gtk_tree_model_iter_nth_child(GTK_TREE_MODEL(store), &iter, level > 0 ? &current : NULL, k))
+#endif
         {
           gtk_tree_model_get(GTK_TREE_MODEL(store), &iter, 0, &value, -1);
-
           if(strcmp(value, pch[level]) == 0)
           {
             g_free(value);
@@ -464,7 +485,6 @@ static GtkTreeStore *_folder_tree()
             found = TRUE;
             break;
           }
-
           g_free(value);
         }
       }
@@ -473,22 +493,31 @@ static GtkTreeStore *_folder_tree()
       if(!found)
       {
         gchar *pth2 = NULL;
+#ifdef __WIN32__
+        pth2 = dt_util_dstrcat(pth2, "%s\\", pch[0]);
+#else
         pth2 = dt_util_dstrcat(pth2, "/");
-
+#endif
         for(int i = 0; i <= level; i++)
         {
+#ifdef __WIN32__
+          if(level > 0 && i != 0) pth2 = dt_util_dstrcat(pth2, "%s\\", pch[i]);
+#else
           if(level > 0 && i != 0) pth2 = dt_util_dstrcat(pth2, "%s/", pch[i]);
+#endif
         }
-
         snprintf(pth2 + strlen(pth2) - 1, 1, "%s", "\0");
 
+#ifdef __WIN32__
+        gtk_tree_store_insert(store, &iter, &current, 0);
+#else
         gtk_tree_store_insert(store, &iter, level > 0 ? &current : NULL, 0);
+#endif
         gtk_tree_store_set(store, &iter, DT_LIB_COLLECT_COL_TEXT, pch[level], DT_LIB_COLLECT_COL_PATH, pth2,
                            DT_LIB_COLLECT_COL_VISIBLE, TRUE, -1);
         g_free(pth2);
         current = iter;
       }
-
       level++;
     }
     g_strfreev(pch);
@@ -586,6 +615,7 @@ static GtkTreeModel *_create_filtered_model(GtkTreeModel *model, GtkTreeIter ite
   int id = -1;
 
 
+
   /* Filter level */
   while(gtk_tree_model_iter_has_child(model, &iter))
   {
@@ -626,7 +656,6 @@ static GtkTreeModel *_create_filtered_model(GtkTreeModel *model, GtkTreeIter ite
   }
 
   path = gtk_tree_model_get_path(model, &iter);
-
   /* Create filter and set virtual root */
   filter = gtk_tree_model_filter_new(model, path);
   gtk_tree_path_free(path);
@@ -1189,7 +1218,7 @@ static void create_folders_gui(dt_lib_collect_rule_t *dr)
 
   if(d->tree_new)
   {
-/* We have already inited the GUI once, clean around */
+    /* We have already inited the GUI once, clean around */
     if(d->trees != NULL)
     {
       g_ptr_array_free(d->trees, TRUE);
@@ -1207,7 +1236,12 @@ static void create_folders_gui(dt_lib_collect_rule_t *dr)
       return;
     }
     gtk_tree_path_free(root);
+#ifdef __WIN32__
+    int children = gtk_tree_model_iter_n_children(GTK_TREE_MODEL(treemodel_folders), &iter);
+    dt_print( (dt_debug_thread_t)0x0ffff,"[collect] create_folders_gui  children:%d\n",children);
+#else
     int children = 1; // To be deleted if the following code in enabled
+#endif
     d->trees = g_ptr_array_sized_new(children);
     g_ptr_array_set_free_func(d->trees, destroy_widget);
 
@@ -1829,7 +1863,7 @@ static int new_rule_cb(lua_State*L)
 static int filter_cb(lua_State *L)
 {
   dt_lib_module_t *self = lua_touserdata(L, lua_upvalueindex(1));
-  
+
   int size;
   dt_lib_collect_params_t *p = get_params(self,&size);
   // put it in stack so memory is not lost if a lua exception is raised
@@ -1937,7 +1971,7 @@ void init(struct dt_lib_module_t *self)
   dt_lua_type_register(L, dt_lib_collect_params_rule_t, "item");
   lua_pushcfunction(L,data_member);
   dt_lua_type_register(L, dt_lib_collect_params_rule_t, "data");
-  
+
 
   luaA_enum(L,dt_lib_collect_mode_t);
   luaA_enum_value(L,dt_lib_collect_mode_t,DT_LIB_COLLECT_MODE_AND);
