@@ -104,7 +104,11 @@ const char *dt_image_film_roll_name(const char *path)
   if(numparts < 1) numparts = 1;
   while(folder > path)
   {
+#ifdef __WIN32__
+    if(*folder == '\\')
+#else
     if(*folder == '/')
+#endif
       if(++count >= numparts)
       {
         ++folder;
