@@ -37,6 +37,7 @@ Installation of toolchain and framework
 <<<<<<< 9f7f61edfd49a08297fd321710f8e9519eb9e600
 <<<<<<< feb86ec8f46239f1952ddcbb4e9bfcf2c675c7fd
   mingw-w64-x86_64-exiv2
+<<<<<<< 24b3f3c02f806b900938dd0a717a908171d1bb4d
 =======
   (mingw-w64-x86_64-exiv2)
 >>>>>>> windows: build instructions for windows port
@@ -45,10 +46,19 @@ Installation of toolchain and framework
 >>>>>>> windows: fixed some minor things in build instruction
   mingw-w64-x86_64-lcms2 mingw-w64-x86_64-lensfun
   mingw-w64-x86_64-openjpeg mingw-w64-x86_64-openjpeg2
+=======
+  mingw-w64-x86_64-lcms2 
+  mingw-w64-x86_64-lensfun
+  mingw-w64-x86_64-openjpeg 
+  mingw-w64-x86_64-openjpeg2
+>>>>>>> windows: updates build instructions
   mingw-w64-x86_64-sqlite3  
   mingw-w64-x86_64-openexr  
   mingw-w64-x86_64-libwebp
   mingw-w64-x86_64-graphicsmagick
+  mingw-w64-x86_64-osm-gps-map
+  mingw-w64-x86_64-pugixml
+  mingw-w64-x86_64-libsoup
   mingw-w64-x86_64-libxslt
   mingw-w64-x86_64-curl
   mingw-w64-x86_64-poppler
@@ -75,6 +85,11 @@ Installation of toolchain and framework
     For all git-ops like clone,commit,checkout,... i use sourcetree
 
     
+- fix /usr/share/perl5/core_perl/file/path.pm
+
+  line 34 : my $Need_Stat_Check = !(($^O eq 'MSWin32') or ($^O eq 'msys'));
+  
+
 - install gcc 6.2.0 : x86_64-6.2.0-release-posix-seh-rt_v5-rev1.7z
   from https://sourceforge.net/projects/mingw-w64/files/Toolchains%20targetting%20Win64/Personal%20Builds/mingw-builds/6.2.0/threads-posix/seh/
 
@@ -106,6 +121,7 @@ Installation of toolchain and framework
  - create 'symlink' for make.exe
    $ ln -s /gcc/bin/mingw32-make.exe /gcc/bin/make.exe
   
+<<<<<<< 24b3f3c02f806b900938dd0a717a908171d1bb4d
 - build and install libsoup 2.53.2 (http://ftp.gnome.org/pub/GNOME/sources/libsoup/2.53/libsoup-2.53.2.tar.xz)
   
   ./configure --prefix=/opt --build=x86_64-w64-mingw32 CFLAGS=-O3 --disable-tls-check --enable-introspection=no --enable-vala=no 
@@ -152,6 +168,8 @@ Installing exiv2 from source
 >>>>>>> windows: build instructions for windows port
 =======
 >>>>>>> windows: fixed some minor things in build instruction
+=======
+>>>>>>> windows: updates build instructions
 
 Building Darktable
 ------------------------------------------------

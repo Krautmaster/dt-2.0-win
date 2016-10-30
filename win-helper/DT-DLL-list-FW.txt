@@ -65,6 +65,6 @@
 /mingw64/bin/libxml2-2.dll
 /mingw64/bin/SSLEAY32.dll
 /mingw64/bin/zlib1.dll
-/opt/bin/libosmgpsmap-1.0-1.dll
-/opt/bin/libpugixml.dll
-/opt/bin/libsoup-2.4-1.dll
+/mingw64/bin/libosmgpsmap-1.0-1.dll
+/mingw64/bin/libpugixml.dll
+/mingw64/bin/libsoup-2.4-1.dll
