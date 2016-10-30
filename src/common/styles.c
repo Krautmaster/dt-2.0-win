@@ -27,6 +27,9 @@
 #include "common/tags.h"
 #include "common/debug.h"
 #include "common/exif.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 
 #include <libxml/encoding.h>
 #include <libxml/xmlwriter.h>
@@ -1051,8 +1054,13 @@ void dt_styles_import_from_file(const char *style_path)
 
   style = dt_styles_style_data_new();
   parser = g_markup_parse_context_new(&dt_style_parser, 0, style, NULL);
-
+#ifdef __WIN32__
+  char  style_pathA[PATH_MAX];
+  win_utf8_to_ansi(style_pathA, PATH_MAX, style_path);
+  if((style_file = fopen(style_pathA, "r")))
+#else
   if((style_file = fopen(style_path, "r")))
+#endif
   {
 
     while(!feof(style_file))

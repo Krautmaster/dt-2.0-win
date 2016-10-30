@@ -25,6 +25,10 @@
 #include "common/exif.h"
 #include "common/imageio.h"
 #include "common/imageio_jpeg.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
+
 #include <setjmp.h>
 
 // error functions
@@ -507,7 +511,13 @@ int dt_imageio_jpeg_write_with_icc_profile(const char *filename, const uint8_t *
     return 1;
   }
   jpeg_create_compress(&(jpg.cinfo));
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *f = fopen(filenameA, "wb");
+#else
   FILE *f = fopen(filename, "wb");
+#endif
   if(!f) return 1;
   jpeg_stdio_dest(&(jpg.cinfo), f);
 
@@ -561,7 +571,13 @@ int dt_imageio_jpeg_write(const char *filename, const uint8_t *in, const int wid
 
 int dt_imageio_jpeg_read_header(const char *filename, dt_imageio_jpeg_t *jpg)
 {
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  jpg->f = fopen(filenameA, "rb");
+#else
   jpg->f = fopen(filename, "rb");
+#endif
   if(!jpg->f) return 1;
 
   struct dt_imageio_jpeg_error_mgr jerr;

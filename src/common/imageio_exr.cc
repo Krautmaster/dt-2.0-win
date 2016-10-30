@@ -44,12 +44,16 @@ extern "C" {
 #include "common/exif.h"
 #include "common/colorspaces.h"
 #include "control/conf.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 }
 #include "common/imageio_exr.hh"
 
 dt_imageio_retval_t dt_imageio_open_exr(dt_image_t *img, const char *filename, dt_mipmap_buffer_t *mbuf)
 {
   bool isTiled = false;
+
 
   Imf::setGlobalThreadCount(dt_get_num_threads());
 
@@ -66,7 +70,13 @@ dt_imageio_retval_t dt_imageio_open_exr(dt_image_t *img, const char *filename, d
 
 
   /* verify openexr image */
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  if(!Imf::isOpenExrFile((const char *)filenameA, isTiled)) return DT_IMAGEIO_FILE_CORRUPTED;
+#else
   if(!Imf::isOpenExrFile((const char *)filename, isTiled)) return DT_IMAGEIO_FILE_CORRUPTED;
+#endif
 
   /* open exr file */
   try
@@ -76,6 +86,9 @@ dt_imageio_retval_t dt_imageio_open_exr(dt_image_t *img, const char *filename, d
 #ifdef __APPLE__
       std::auto_ptr<Imf::TiledInputFile> temp(new Imf::TiledInputFile(filename));
       fileTiled = temp;
+#elseif defined(__WIN32__)
+      std::unique_ptr<Imf::TiledInputFile> temp(new Imf::TiledInputFile(filenameA));
+      fileTiled = std::move(temp);
 #else
       std::unique_ptr<Imf::TiledInputFile> temp(new Imf::TiledInputFile(filename));
       fileTiled = std::move(temp);
@@ -86,6 +99,9 @@ dt_imageio_retval_t dt_imageio_open_exr(dt_image_t *img, const char *filename, d
 #ifdef __APPLE__
       std::auto_ptr<Imf::InputFile> temp(new Imf::InputFile(filename));
       file = temp;
+#elseif defined(__WIN32__)
+      std::unique_ptr<Imf::InputFile> temp(new Imf::InputFile(filenameA));
+      file = std::move(temp);
 #else
       std::unique_ptr<Imf::InputFile> temp(new Imf::InputFile(filename));
       file = std::move(temp);

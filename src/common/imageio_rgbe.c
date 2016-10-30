@@ -19,6 +19,9 @@
 #include "config.h"
 #endif
 #include "common/imageio_rgbe.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 #include <math.h>
 #include <string.h>
 #include <stdio.h>
@@ -486,7 +489,13 @@ dt_imageio_retval_t dt_imageio_open_rgbe(dt_image_t *img, const char *filename, 
   while(*ext != '.' && ext > filename) ext--;
   if(strncmp(ext, ".hdr", 4) && strncmp(ext, ".HDR", 4) && strncmp(ext, ".Hdr", 4))
     return DT_IMAGEIO_FILE_CORRUPTED;
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *f = fopen(filenameA, "rb");
+#else
   FILE *f = fopen(filename, "rb");
+#endif
   if(!f) return DT_IMAGEIO_FILE_CORRUPTED;
 
   if(RGBE_ReadHeader(f, &img->width, &img->height, NULL)) goto error_corrupt;

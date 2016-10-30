@@ -64,6 +64,9 @@ extern "C" {
 #include "common/debug.h"
 #include "control/conf.h"
 #include "develop/imageop.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 }
 
 static void _exif_import_tags(dt_image_t *img, Exiv2::XmpData::iterator &pos);
@@ -962,7 +965,13 @@ int dt_exif_get_thumbnail(const char *path, uint8_t **buffer, size_t *size, char
 {
   try
   {
+#ifdef __WIN32__
+    char pathA[MAX_PATH];
+    win_utf8_to_ansi(pathA, MAX_PATH, path);
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(pathA);
+#else
     Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(path);
+#endif
     assert(image.get() != 0);
     image->readMetadata();
 
@@ -1014,8 +1023,13 @@ int dt_exif_read(dt_image_t *img, const char *path)
   // at least set datetime taken to something useful in case there is no exif data in this file (pfm, png,
   // ...)
   struct stat statbuf;
-
+#ifdef __WIN32__
+  char pathA[MAX_PATH];
+  win_utf8_to_ansi(pathA, MAX_PATH, path);
+  if(!stat(pathA, &statbuf))
+#else
   if(!stat(path, &statbuf))
+#endif
   {
     struct tm result;
     strftime(img->exif_datetime_taken, 20, "%Y:%m:%d %H:%M:%S", localtime_r(&statbuf.st_mtime, &result));
@@ -1028,7 +1042,11 @@ int dt_exif_read(dt_image_t *img, const char *path)
 #else
     std::unique_ptr<Exiv2::Image> image;
 #endif
+#ifdef __WIN32__
+    image = Exiv2::ImageFactory::open(pathA);
+#else
     image = Exiv2::ImageFactory::open(path);
+#endif
     assert(image.get() != 0);
     image->readMetadata();
     bool res = true;
@@ -1071,12 +1089,20 @@ int dt_exif_write_blob(uint8_t *blob, uint32_t size, const char *path, const int
 {
   try
   {
+#ifdef __WIN32__
+    char pathA[MAX_PATH];
+    win_utf8_to_ansi(pathA, MAX_PATH, path);
+#endif
 #ifdef __APPLE__
     Exiv2::Image::AutoPtr image;
 #else
     std::unique_ptr<Exiv2::Image> image;
 #endif
+#ifdef __WIN32__
+    image = Exiv2::ImageFactory::open(pathA);
+#else
     image = Exiv2::ImageFactory::open(path);
+#endif
     assert(image.get() != 0);
     image->readMetadata();
     Exiv2::ExifData &imgExifData = image->exifData();
@@ -1135,12 +1161,20 @@ int dt_exif_read_blob(uint8_t *buf, const char *path, const int imgid, const int
 {
   try
   {
+#ifdef __WIN32__
+    char pathA[MAX_PATH];
+    win_utf8_to_ansi(pathA, MAX_PATH, path);
+#endif
 #ifdef __APPLE__
     Exiv2::Image::AutoPtr image;
 #else
     std::unique_ptr<Exiv2::Image> image;
 #endif
+#ifdef __WIN32__
+    image = Exiv2::ImageFactory::open(pathA);
+#else
     image = Exiv2::ImageFactory::open(path);
+#endif
     assert(image.get() != 0);
     image->readMetadata();
     Exiv2::ExifData &exifData = image->exifData();
@@ -1665,13 +1699,21 @@ int dt_exif_xmp_read(dt_image_t *img, const char *filename, const int history_on
   if(c >= filename && !strcmp(c, ".pfm")) return 1;
   try
   {
+#ifdef __WIN32__
+    char filenameA[MAX_PATH];
+    win_utf8_to_ansi( filenameA, MAX_PATH, filename);
+#endif
     // read xmp sidecar
 #ifdef __APPLE__
     Exiv2::Image::AutoPtr image;
 #else
     std::unique_ptr<Exiv2::Image> image;
 #endif
+#ifdef __WIN32__
+    image = Exiv2::ImageFactory::open(filenameA);
+#else
     image = Exiv2::ImageFactory::open(filename);
+#endif
     assert(image.get() != 0);
     image->readMetadata();
     Exiv2::XmpData &xmpData = image->xmpData();
@@ -2322,18 +2364,29 @@ static void dt_exif_xmp_read_data(Exiv2::XmpData &xmpData, const int imgid)
 
 int dt_exif_xmp_attach(const int imgid, const char *filename)
 {
+#ifdef __WIN32__
+  char filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+#endif
   try
   {
     char input_filename[PATH_MAX] = { 0 };
     gboolean from_cache = FALSE;
     dt_image_full_path(imgid, input_filename, sizeof(input_filename), &from_cache);
+#ifdef __WIN32__
+    win_utf8_to_ansi(input_filename, PATH_MAX, input_filename);
+#endif
 
 #ifdef __APPLE__
     Exiv2::Image::AutoPtr img;
 #else
     std::unique_ptr<Exiv2::Image> img;
 #endif
+#ifdef __WIN32__
+    img = Exiv2::ImageFactory::open(filenameA);
+#else
     img = Exiv2::ImageFactory::open(filename);
+#endif
     // unfortunately it seems we have to read the metadata, to not erase the exif (which we just wrote).
     // will make export slightly slower, oh well.
     // img->clearXmpPacket();
@@ -2362,8 +2415,13 @@ int dt_exif_xmp_attach(const int imgid, const char *filename)
     {
       Exiv2::XmpData sidecarXmpData;
       std::string xmpPacket;
-
+#ifdef __WIN32__
+      char  input_filenameA[PATH_MAX];
+      win_utf8_to_ansi(input_filenameA, PATH_MAX, input_filename);
+      Exiv2::DataBuf buf = Exiv2::readFile(input_filenameA);
+#else
       Exiv2::DataBuf buf = Exiv2::readFile(input_filename);
+#endif
       xmpPacket.assign(reinterpret_cast<char *>(buf.pData_), buf.size_);
       Exiv2::XmpParser::decode(sidecarXmpData, xmpPacket);
 
@@ -2397,13 +2455,21 @@ int dt_exif_xmp_write(const int imgid, const char *filename)
   dt_image_full_path(imgid, imgfname, sizeof(imgfname), &from_cache);
   if(!g_file_test(imgfname, G_FILE_TEST_IS_REGULAR)) return 1;
 
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+#endif
   try
   {
     Exiv2::XmpData xmpData;
     std::string xmpPacket;
     if(g_file_test(filename, G_FILE_TEST_EXISTS))
     {
+#ifdef __WIN32__
+      Exiv2::DataBuf buf = Exiv2::readFile(filenameA);
+#else
       Exiv2::DataBuf buf = Exiv2::readFile(filename);
+#endif
       xmpPacket.assign(reinterpret_cast<char *>(buf.pData_), buf.size_);
       Exiv2::XmpParser::decode(xmpData, xmpPacket);
       // because XmpSeq or XmpBag are added to the list, we first have
@@ -2420,7 +2486,11 @@ int dt_exif_xmp_write(const int imgid, const char *filename)
     {
       throw Exiv2::Error(1, "[xmp_write] failed to serialize xmp data");
     }
+#ifdef __WIN32__
+    std::ofstream fout(filenameA);
+#else
     std::ofstream fout(filename);
+#endif
     if(fout.is_open())
     {
       fout << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"; // write XML header

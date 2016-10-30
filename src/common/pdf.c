@@ -42,6 +42,9 @@
 #else
 #include "version.h"
 #endif
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 
 #include "pdf.h"
 
@@ -205,7 +208,13 @@ dt_pdf_t *dt_pdf_start(const char *filename, float width, float height, float dp
   dt_pdf_t *pdf = calloc(1, sizeof(dt_pdf_t));
   if(!pdf) return NULL;
 
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  pdf->fd = fopen(filenameA, "wb");
+#else
   pdf->fd = fopen(filename, "wb");
+#endif
   if(!pdf->fd)
   {
     free(pdf);
@@ -303,7 +312,13 @@ static size_t _pdf_write_stream(dt_pdf_t *pdf, dt_pdf_stream_encoder_t encoder, 
 
 int dt_pdf_add_icc(dt_pdf_t *pdf, const char *filename)
 {
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *in = fopen(filenameA, "rb");
+#else
   FILE *in = fopen(filename, "rb");
+#endif
   if(!in) return 0;
 
   fseek(in, 0, SEEK_END);

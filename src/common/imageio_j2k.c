@@ -21,6 +21,10 @@
 #include "common/darktable.h"
 #include "common/imageio_j2k.h"
 #include "common/exif.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -108,7 +112,13 @@ dt_imageio_retval_t dt_imageio_open_j2k(dt_image_t *img, const char *filename, d
 
   /* read the input file and put it in memory */
   /* ---------------------------------------- */
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  fsrc = fopen(filenameA, "rb");
+#else
   fsrc = fopen(filename, "rb");
+#endif
   if(!fsrc)
   {
     fprintf(stderr, "[j2k_open] Error: failed to open `%s' for reading\n", filename);
@@ -314,7 +324,13 @@ int dt_imageio_j2k_read_profile(const char *filename, uint8_t **out)
 
   /* read the input file and put it in memory */
   /* ---------------------------------------- */
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  fsrc = fopen(filenameA, "rb");
+#else
   fsrc = fopen(filename, "rb");
+#endif
   if(!fsrc)
   {
     fprintf(stderr, "[j2k_open] Error: failed to open `%s' for reading\n", filename);

@@ -26,6 +26,9 @@
 #include <string.h>
 #include "common/darktable.h"
 #include "common/exif.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 
 
 #define II 1
@@ -216,7 +219,13 @@ static inline void dt_imageio_write_dng(const char *filename, const float *const
                                         const int ht, void *exif, const int exif_len, const uint32_t filter,
                                         const float whitelevel)
 {
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *f = fopen(filenameA, "wb");
+#else
   FILE *f = fopen(filename, "wb");
+#endif
   int k = 0;
   if(f)
   {

@@ -892,7 +892,7 @@ void dt_camctl_import(const dt_camctl_t *c, const dt_camera_t *cam, GList *image
       char filename[PATH_MAX] = { 0 };
       char *file = (char *)ifile->data;
       eos = file + strlen(file);
-      while(--eos > file && *eos != '/')
+      while(--eos > file && *eos != '/' && *eos != '\\')
         ;
       char *_file = g_strndup(file, eos - file);
       g_strlcat(folder, _file, sizeof(folder));

@@ -45,7 +45,7 @@ dt_gmodule_t *dt_gmodule_open(const char *library)
   GModule *gmodule;
   char *name;
 
-  if(strchr(library, '/') == NULL)
+  if(strchr(library, '/') == NULL && strchr(library, '\\') == NULL)
   {
     name = g_module_build_path(NULL, library);
   }

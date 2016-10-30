@@ -24,6 +24,9 @@
 #include "common/exif.h"
 #include "common/colorspaces.h"
 #include "control/conf.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 
 #include <memory.h>
 #include <stdio.h>
@@ -69,7 +72,13 @@ dt_imageio_retval_t dt_imageio_open_gm(dt_image_t *img, const char *filename, dt
   GetExceptionInfo(&exception);
   image_info = CloneImageInfo((ImageInfo *)NULL);
 
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  g_strlcpy(image_info->filename, filenameA, sizeof(image_info->filename));
+#else
   g_strlcpy(image_info->filename, filename, sizeof(image_info->filename));
+#endif
 
   image = ReadImage(image_info, &exception);
   if(exception.severity != UndefinedException) CatchException(&exception);

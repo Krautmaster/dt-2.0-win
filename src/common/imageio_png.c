@@ -29,6 +29,10 @@
 #include "common/exif.h"
 #include "common/colorspaces.h"
 #include "control/conf.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
+
 
 typedef struct dt_imageio_png_t
 {
@@ -44,7 +48,13 @@ typedef struct dt_imageio_png_t
 
 int read_header(const char *filename, dt_imageio_png_t *png)
 {
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  png->f = fopen(filenameA, "rb");
+#else  
   png->f = fopen(filename, "rb");
+#endif
 
   if(!png->f) return 1;
 

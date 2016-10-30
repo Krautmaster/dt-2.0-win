@@ -74,7 +74,8 @@ FileMap* FileReader::readFile() {
   HANDLE file_h;  // File handle
   file_h = CreateFile(mFilename, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_FLAG_SEQUENTIAL_SCAN, NULL);
   if (file_h == INVALID_HANDLE_VALUE) {
-    throw FileIOException("Could not open file.");
+    DWORD err = GetLastError();
+    ThrowFIE("Could not open file. Err:%lu", err);
   }
 
   LARGE_INTEGER f_size;

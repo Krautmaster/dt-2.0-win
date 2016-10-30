@@ -333,7 +333,7 @@ int dt_load_from_string(const gchar *input, gboolean open_image_in_dr, gboolean 
   {
     // import a directory into a film roll
     unsigned int last_char = strlen(filename) - 1;
-    if(filename[last_char] == '/') filename[last_char] = '\0';
+    if(filename[last_char] == '/' || filename[last_char] == '\\') filename[last_char] = '\0';
     id = dt_film_import(filename);
     if(id)
     {
@@ -587,6 +587,13 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
                , lua_api_version
 #endif
         );
+#ifdef __WIN32__
+        {
+          char *lc;
+          lc = setlocale( LC_ALL, NULL);
+          printf("win locale = %s\n", lc);
+        }
+#endif
         return 1;
       }
       else if(!strcmp(argv[k], "--library") && argc > k + 1)

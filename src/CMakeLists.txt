@@ -394,6 +394,8 @@ if(WIN32)
   list(APPEND SOURCES "win/getrusage.c")
   list(APPEND SOURCES "win/setenv.c")
   list(APPEND SOURCES "win/glob.c")
+  list(APPEND SOURCES "win/debug.c")
+  list(APPEND SOURCES "win/win_utf.c")
 endif(WIN32)
 
 if(NOT CUSTOM_CFLAGS)

@@ -33,6 +33,9 @@ extern "C" {
 #include "common/colorspaces.h"
 #include "common/file_location.h"
 #include <stdint.h>
+#ifdef __WIN32__
+#include "win\debug.h"
+#endif
 }
 
 // define this function, it is only declared in rawspeed:
@@ -88,7 +91,7 @@ void dt_rawspeed_lookup_makermodel(const char *maker, const char *model,
   }
   catch(const std::exception &exc)
   {
-    printf("[rawspeed] %s\n", exc.what());
+    fprintf(stderr, "[rawspeed] %s\n", exc.what());
   }
 
   if (!got_it_done)
@@ -109,7 +112,8 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
 #ifdef __WIN32__
   const size_t len = strlen(filename) + 1;
   wchar_t filen[len];
-  mbstowcs(filen, filename, len);
+  MultiByteToWideChar( CP_UTF8, 0, filename, -1, filen, len);
+  // mbstowcs(filen, filename, len);
   FileReader f(filen);
 #else
   char filen[PATH_MAX] = { 0 };
@@ -247,7 +251,7 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
     img->filters = r->cfa.getDcrawFilter();
     if(img->filters == 0xb4b4b4b4 || img->filters == 0x9c9c9c9c)
     {
-      printf("[rawspeed] detected CYGM or RGBE sensor camera. Not supported in this version!\n");
+      fprintf(stderr, "[rawspeed] detected CYGM or RGBE sensor camera. Not supported in this version!\n");
       return DT_IMAGEIO_FILE_CORRUPTED;
     }
     if(img->filters)
@@ -322,7 +326,7 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
   }
   catch(const std::exception &exc)
   {
-    printf("[rawspeed] (%s) %s\n", img->filename, exc.what());
+    fprintf(stderr, "[rawspeed] (%s) %s\n", filename, exc.what()); fflush(stderr);
 
     /* if an exception is raised lets not retry or handle the
      specific ones, consider the file as corrupted */
@@ -330,7 +334,7 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
   }
   catch(...)
   {
-    printf("Unhandled exception in imageio_rawspeed\n");
+    fprintf(stderr, "Unhandled exception in imageio_rawspeed\n");  fflush(stderr);
     return DT_IMAGEIO_FILE_CORRUPTED;
   }
 

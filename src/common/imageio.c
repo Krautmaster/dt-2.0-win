@@ -48,7 +48,9 @@
 #include "develop/develop.h"
 #include "develop/imageop.h"
 #include "develop/blend.h"
-
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 #ifdef HAVE_GRAPHICSMAGICK
 #include <magick/api.h>
 #include <magick/blob.h>
@@ -409,7 +411,13 @@ gboolean dt_imageio_is_ldr(const char *filename)
 {
   size_t offset = 0;
   uint8_t block[16] = { 0 };
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *fin = fopen(filenameA, "rb");
+#else
   FILE *fin = fopen(filename, "rb");
+#endif
   if(fin)
   {
     /* read block from file */

@@ -20,6 +20,10 @@
 #endif
 #include "common/darktable.h"
 #include "common/imageio_pfm.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,7 +40,13 @@ dt_imageio_retval_t dt_imageio_open_pfm(dt_image_t *img, const char *filename, d
   const char *ext = filename + strlen(filename);
   while(*ext != '.' && ext > filename) ext--;
   if(strcasecmp(ext, ".pfm")) return DT_IMAGEIO_FILE_CORRUPTED;
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  FILE *f = fopen(filenameA, "rb");
+#else
   FILE *f = fopen(filename, "rb");
+#endif
   if(!f) return DT_IMAGEIO_FILE_CORRUPTED;
   int ret = 0;
   int cols = 3;

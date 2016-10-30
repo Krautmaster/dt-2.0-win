@@ -40,6 +40,7 @@
 #include <assert.h>
 #ifdef __WIN32__
 #include "win/glob.h"
+#include "win/win_utf.h"
 #else
 #include <glob.h>
 #endif
@@ -181,10 +182,17 @@ gboolean dt_image_safe_remove(const int32_t imgid)
 void dt_image_full_path(const int imgid, char *pathname, size_t pathname_len, gboolean *from_cache)
 {
   sqlite3_stmt *stmt;
+#ifdef __WIN32__
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                              "select folder || '\\' || filename from images, film_rolls where "
+                              "images.film_id = film_rolls.id and images.id = ?1",
+                              -1, &stmt, NULL);
+#else
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
                               "select folder || '/' || filename from images, film_rolls where "
                               "images.film_id = film_rolls.id and images.id = ?1",
                               -1, &stmt, NULL);
+#endif
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
   if(sqlite3_step(stmt) == SQLITE_ROW)
   {
@@ -209,10 +217,17 @@ static void _image_local_copy_full_path(const int imgid, char *pathname, size_t 
   sqlite3_stmt *stmt;
 
   *pathname = '\0';
+#ifdef __WIN32__
+  DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
+                              "SELECT folder || '\\' || filename FROM images, film_rolls "
+                              "WHERE images.film_id = film_rolls.id AND images.id = ?1",
+                              -1, &stmt, NULL);
+#else
   DT_DEBUG_SQLITE3_PREPARE_V2(dt_database_get(darktable.db),
                               "SELECT folder || '/' || filename FROM images, film_rolls "
                               "WHERE images.film_id = film_rolls.id AND images.id = ?1",
                               -1, &stmt, NULL);
+#endif
   DT_DEBUG_SQLITE3_BIND_INT(stmt, 1, imgid);
   if(sqlite3_step(stmt) == SQLITE_ROW)
   {
@@ -669,14 +684,19 @@ void dt_image_read_duplicates(const uint32_t id, const char *filename)
     while(*c2 != '.' && c2 > filename) c2--;
     snprintf(c1 + strlen(*glob_pattern), pattern + sizeof(pattern) - c1 - strlen(*glob_pattern), "%s.xmp", c2);
 
-#if 0 // def __WIN32__
-    WIN32_FIND_DATA data;
-    HANDLE handle = FindFirstFile(pattern, &data);
-    if(handle != INVALID_HANDLE_VALUE)
+#ifdef __WIN32__
+    char patternA[PATH_MAX];
+    win_utf8_to_ansi(patternA, PATH_MAX, pattern);
+    glob_t globbuf;
+    if(!glob(patternA, 0, NULL, &globbuf))
     {
-      do
-        files = g_list_append(files, g_strdup(data.cFileName));
-      while(FindNextFile(handle, &data));
+      for(size_t i = 0; i < globbuf.gl_pathc; i++)
+      {
+        char tempU[PATH_MAX];
+        win_ansi_to_utf8(tempU, PATH_MAX, globbuf.gl_pathv[i]);
+        files = g_list_append(files, g_strdup(tempU));
+      }
+      globfree(&globbuf);
     }
 #else
     glob_t globbuf;
@@ -687,7 +707,6 @@ void dt_image_read_duplicates(const uint32_t id, const char *filename)
       globfree(&globbuf);
     }
 #endif
-
     glob_pattern++;
   }
 
@@ -709,7 +728,6 @@ void dt_image_read_duplicates(const uint32_t id, const char *filename)
     else
     {
       // we need to derive the version number from the  filename
-
       gchar *c3 = xmpfilename + strlen(xmpfilename)
                   - 5; // skip over .xmp extension; position c3 at character before the '.'
       while(*c3 != '.' && c3 > xmpfilename)

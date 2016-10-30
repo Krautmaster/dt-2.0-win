@@ -23,6 +23,9 @@
 #include "common/exif.h"
 #include "common/colorspaces.h"
 #include "control/conf.h"
+#ifdef __WIN32__
+#include "win/win_utf.h"
+#endif
 
 #include <memory.h>
 #include <stdio.h>
@@ -151,8 +154,13 @@ dt_imageio_retval_t dt_imageio_open_tiff(dt_image_t *img, const char *filename, 
   uint16_t config;
 
   t.image = img;
-
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  if((t.tiff = TIFFOpen(filenameA, "rb")) == NULL) return DT_IMAGEIO_FILE_CORRUPTED;
+#else
   if((t.tiff = TIFFOpen(filename, "rb")) == NULL) return DT_IMAGEIO_FILE_CORRUPTED;
+#endif
 
   TIFFGetField(t.tiff, TIFFTAG_IMAGEWIDTH, &t.width);
   TIFFGetField(t.tiff, TIFFTAG_IMAGELENGTH, &t.height);
@@ -236,9 +244,13 @@ int dt_imageio_tiff_read_profile(const char *filename, uint8_t **out)
   uint8_t *profile = NULL;
 
   if(!(filename && *filename && out)) return 0;
-
+#ifdef __WIN32__
+  char  filenameA[PATH_MAX];
+  win_utf8_to_ansi(filenameA, PATH_MAX, filename);
+  if((tiff = TIFFOpen(filenameA, "rb")) == NULL) return 0;
+#else
   if((tiff = TIFFOpen(filename, "rb")) == NULL) return 0;
-
+#endif
   if(TIFFGetField(tiff, TIFFTAG_ICCPROFILE, &profile_len, &profile))
   {
     *out = (uint8_t *)malloc(profile_len);
