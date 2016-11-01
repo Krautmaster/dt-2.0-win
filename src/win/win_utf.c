@@ -9,8 +9,7 @@ int win_utf8_to_ansi(char *dest, int dlen, const char *src)
   wchar_t temp[len];
   MultiByteToWideChar( CP_UTF8, 0, src, -1, temp, len);
   size_t result = WideCharToMultiByte( CP_ACP, 0, temp, -1, dest, dlen, NULL, NULL);
-  
-  win_debug("win_utf8_to_ansi\n -- utf8:%s\n -- ansi:%s", src, dest);
+  // win_debug("win_utf8_to_ansi utf8:<%s> ansi:<%s>", src, dest);
   return result;
 }
 
@@ -26,7 +25,7 @@ int win_ansi_to_utf8(char *dest, int dlen, const char *src)
   wchar_t temp[len];
   MultiByteToWideChar( CP_ACP, 0, src, -1, temp, len);
   size_t result = WideCharToMultiByte( CP_UTF8, 0, temp, -1, dest, dlen, NULL, NULL);
-  win_debug("win_ansi_to_utf8\n -- ansi:%s\n -- utf8:%s", src, dest);
+  // win_debug("win_ansi_to_utf8 ansi:<%s> utf8:<%s>", src, dest);
   return result;
 }
 
