@@ -886,18 +886,18 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   if(!darktable.opencl->async_pixelpipe || piece->pipe->type == DT_DEV_PIXELPIPE_EXPORT)
     dt_opencl_finish(devid);
 
-  if(dev_filter != NULL) dt_opencl_release_mem_object(dev_filter);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_filter);
+  dt_opencl_release_mem_object(dev_tmp);
   for(int k = 0; k < max_scale; k++)
-    if(dev_detail[k] != NULL) dt_opencl_release_mem_object(dev_detail[k]);
+    dt_opencl_release_mem_object(dev_detail[k]);
   free(dev_detail);
   return TRUE;
 
 error:
-  if(dev_filter != NULL) dt_opencl_release_mem_object(dev_filter);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_filter);
+  dt_opencl_release_mem_object(dev_tmp);
   for(int k = 0; k < max_scale; k++)
-    if(dev_detail[k] != NULL) dt_opencl_release_mem_object(dev_detail[k]);
+    dt_opencl_release_mem_object(dev_detail[k]);
   free(dev_detail);
   dt_print(DT_DEBUG_OPENCL, "[opencl_atrous] couldn't enqueue kernel! %d\n", err);
   return FALSE;
@@ -929,7 +929,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_atrous_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_atrous_params_t));
   module->default_enabled = 0;
-  module->priority = 569; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 567; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_atrous_params_t);
   module->gui_data = NULL;
   dt_iop_atrous_params_t tmp;

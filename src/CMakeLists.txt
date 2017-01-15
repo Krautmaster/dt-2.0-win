@@ -1,3 +1,5 @@
+add_subdirectory(external)
+
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
@@ -43,12 +45,15 @@ FILE(GLOB SOURCE_FILES
   "common/imageio_rawspeed.cc"
   "common/import_session.c"
   "common/interpolation.c"
+  "common/locallaplacian.c"
+  "common/locallaplaciancl.c"
   "common/metadata.c"
   "common/mipmap_cache.c"
   "common/noiseprofiles.c"
   "common/pdf.c"
   "common/styles.c"
   "common/selection.c"
+  "common/system_signal_handling.c"
   "common/tags.c"
   "common/utility.c"
   "common/variables.c"
@@ -122,6 +127,11 @@ if(NOT COMPILER_SUPPORTS_C99)
         message(FATAL_ERROR "The compiler ${CMAKE_C_COMPILER} has no C99 support. Please use a different C compiler.")
 endif()
 
+CHECK_C_COMPILER_FLAG("-std=c11" COMPILER_SUPPORTS_C11)
+if(NOT COMPILER_SUPPORTS_C11)
+  message(FATAL_ERROR "The compiler ${CMAKE_C_COMPILER} has no C11 support. Please use a different C compiler.")
+endif()
+
 CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
 if(NOT COMPILER_SUPPORTS_CXX11)
         message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
@@ -129,9 +139,26 @@ endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-if(APPLE)
+
+if(APPLE AND (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-endif(APPLE)
+        list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_LINK_LIBRARIES stdc++)
+        list(APPEND CMAKE_CXX_IMPLICIT_LINK_LIBRARIES c++)
+        list(REMOVE_DUPLICATES CMAKE_CXX_IMPLICIT_LINK_LIBRARIES)
+endif()
+
+# Check for base threading library
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+find_package(Threads REQUIRED)
+# Fail if returned library is not pthread
+if(NOT CMAKE_USE_PTHREADS_INIT)
+  message(FATAL_ERROR "POSIX threads: not found")
+endif()
+# Append thread flags/libraries to LIBS
+list(APPEND LIBS "${CMAKE_THREAD_LIBS_INIT}")
+
+# Need to explicitly link against math library.
+list(APPEND LIBS "-lm")
 
 # Check for openmp
 find_package(OpenMP)
@@ -216,7 +243,7 @@ if(USE_WEBP)
   else(USE_WEBP)
 endif(USE_WEBP)
 
-foreach(lib ${OUR_LIBS} LensFun GIO GThread GModule PangoCairo PThread Rsvg2 LibXml2 Sqlite3 CURL PNG JPEG TIFF LCMS2 JsonGlib)
+foreach(lib ${OUR_LIBS} LensFun GIO GThread GModule PangoCairo Rsvg2 LibXml2 Sqlite3 CURL PNG JPEG TIFF LCMS2 JsonGlib)
   find_package(${lib} REQUIRED)
   include_directories(SYSTEM ${${lib}_INCLUDE_DIRS})
   list(APPEND LIBS ${${lib}_LIBRARIES})
@@ -228,18 +255,6 @@ find_package(Exiv2 0.24 REQUIRED)
 include_directories(SYSTEM ${Exiv2_INCLUDE_DIRS})
 list(APPEND LIBS ${Exiv2_LIBRARIES})
 add_definitions(${Exiv2_DEFINITIONS})
-
-if(USE_NLS)
-  find_package(Gettext)
-  if(Gettext_FOUND)
-    include_directories(SYSTEM ${Gettext_INCLUDE_DIRS})
-    list(APPEND LIBS ${Gettext_LIBRARIES})
-    add_definitions("-DUSE_GETTEXT")
-    message(STATUS "Internationalization: Enabled")
-  else()
-    message(STATUS "Internationalization: Disabled (libintl not found)")
-  endif()
-endif(USE_NLS)
 
 if(USE_FLICKR)
   find_package(FLICKCURL)
@@ -377,11 +392,6 @@ if(NOT HAVE_TLS)
   MESSAGE(FATAL_ERROR "The compiler does not support Thread-local storage.")
 endif()
 
-if(NOT WIN32)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -pthread")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-endif(NOT WIN32)
-
 if(WIN32)
   # get rid of the console window. do we need both?
 #   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mwindows -Wl,-subsystem,windows")
@@ -408,25 +418,7 @@ if(NOT CUSTOM_CFLAGS)
     set(DT_REQ_INSTRUCTIONS "-msse2")
   endif()
 
-  if(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
-    set(MARCH "-msse4.2")
-  elseif(NOT BINARY_PACKAGE_BUILD AND (NOT APPLE OR CMAKE_C_COMPILER_ID STREQUAL "AppleClang"))
-    MESSAGE("-- Checking for -march=native support")
-    CHECK_C_COMPILER_FLAG("-march=native" MARCHNATIVE)
-    if (MARCHNATIVE)
-      set(MARCH "-march=native")
-    else()
-      MESSAGE("-- Checking for -mtune=native support")
-      CHECK_C_COMPILER_FLAG("-mtune=native" MTUNENATIVE)
-      if (MTUNENATIVE)
-        set(MARCH "-mtune=native")
-      else()
-        set(MARCH "-mtune=generic")
-      endif()
-    endif()
-  else()
-    set(MARCH "-mtune=generic")
-  endif()
+  include(march-mtune)
 
   #if(NOT BUILD_SSE2_CODEPATHS)
   #  set(MARCH "${MARCH} -mno-sse2 -D__DISABLE_SSE2__ -U__SSE2__ -D__DISABLE_SSE__ -U__SSE__")
@@ -476,14 +468,14 @@ include_directories("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}")
 # Build external deps
 #
 if(USE_LUA)
-  find_package(Lua52 5.2)
-  if(LUA52_FOUND)
+  find_package(Lua53 5.3)
+  if(LUA53_FOUND)
     message(STATUS "Lua support: Enabled")
-    include_directories(SYSTEM ${LUA52_INCLUDE_DIRS})
-    list(APPEND LIBS ${LUA52_LDFLAGS})
+    include_directories(SYSTEM ${LUA53_INCLUDE_DIRS})
+    list(APPEND LIBS ${LUA53_LDFLAGS})
   else()
     if(DONT_USE_INTERNAL_LUA)
-      message(STATUS "Lua support: System library for lua 5.2 not found (to use darktable's version use -DDONT_USE_INTERNAL_LUA=Off)")
+      message(STATUS "Lua support: System library for lua 5.3 not found (to use darktable's version use -DDONT_USE_INTERNAL_LUA=Off)")
       set(USE_LUA OFF)
     else(DONT_USE_INTERNAL_LUA)
       message(STATUS "Lua support: System library not found (using darktable's version)")
@@ -491,7 +483,7 @@ if(USE_LUA)
       add_subdirectory(external/lua)
       list(APPEND LIBS lua)
     endif(DONT_USE_INTERNAL_LUA)
-  endif(LUA52_FOUND)
+  endif(LUA53_FOUND)
 
   if(USE_LUA)
     add_definitions("-DUSE_LUA")
@@ -542,12 +534,12 @@ else(USE_LUA)
 endif(USE_LUA)
 
 if(USE_LUA)
-  if(NOT LUA52_FOUND)
-    list(APPEND LIB_DEPS liblua) # 2nd half of the uglyness :/
-  endif(NOT LUA52_FOUND)
+  if(NOT LUA53_FOUND)
+    list(APPEND LIB_DEPS lua) # 2nd half of the uglyness :/
+  endif(NOT LUA53_FOUND)
   # liblautoc for lua automated interface generation
   add_library(lautoc_static STATIC IMPORTED)
-  set_target_properties(lautoc_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/LuaAutoC/liblautoc.a)
+  set_target_properties(lautoc_static PROPERTIES IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/external/LuaAutoC/liblautoc.a POSITION_INDEPENDENT_CODE True)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/LuaAutoC/)
   add_subdirectory(external/LuaAutoC)
   list(APPEND LIB_DEPS lautoc)
@@ -564,9 +556,8 @@ if(NOT SOURCE_PACKAGE AND NOT APPLE)
 endif()
 
 # compile rawspeed
-add_subdirectory(external/rawspeed)
 list(APPEND LIB_DEPS rawspeed)
-list(APPEND STATIC_LIBS rawspeed_static)
+list(APPEND STATIC_LIBS rawspeed_static_dt)
 
 # osm gps map library
 if(USE_MAP)
@@ -625,7 +616,6 @@ if(BUILD_PRINT)
       "common/printprof.c"
       )
     set(SOURCES ${SOURCES} ${SOURCE_FILES_PRINT})
-    add_library(cups_static STATIC IMPORTED)
     list(APPEND LIBS ${CUPS_LIBRARIES})
     add_definitions("-DHAVE_PRINT")
     message(STATUS "Print mode: enabled")
@@ -652,7 +642,7 @@ if(NOT ${Xsltproc_BIN} STREQUAL "Xsltproc_BIN-NOTFOUND")
   add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_prefs.xsl ${CMAKE_CURRENT_BINARY_DIR}/../data/darktableconfig.dtd ${CMAKE_CURRENT_BINARY_DIR}/../data/darktableconfig.xml
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h
-    COMMAND ${Xsltproc_BIN} --stringparam HAVE_OPENCL ${HAVE_OPENCL} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_prefs.xsl ${CMAKE_CURRENT_BINARY_DIR}/../data/darktableconfig.xml > ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h
+    COMMAND ${Xsltproc_BIN} --nonet --stringparam HAVE_OPENCL ${HAVE_OPENCL} ${CMAKE_CURRENT_SOURCE_DIR}/../tools/generate_prefs.xsl ${CMAKE_CURRENT_BINARY_DIR}/../data/darktableconfig.xml > ${CMAKE_CURRENT_BINARY_DIR}/preferences_gen.h
     COMMENT "Generating preferences"
   )
 else(NOT ${Xsltproc_BIN} STREQUAL "Xsltproc_BIN-NOTFOUND")
@@ -763,15 +753,6 @@ endif(BUILD_CMSTEST)
 
 # have a gui tool to create CLUTs from colour chart targets
 add_subdirectory(chart)
-
-# build opengl slideshow viewer?
-if(BUILD_SLIDESHOW)
-  find_package(SDL)
-  find_package(OpenGL)
-  if(SDL_FOUND AND OPENGL_FOUND)
-    add_subdirectory(dtview)
-  endif(SDL_FOUND AND OPENGL_FOUND)
-endif(BUILD_SLIDESHOW)
 
 #
 # build darktable executable

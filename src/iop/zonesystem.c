@@ -383,8 +383,8 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_zmo != NULL) dt_opencl_release_mem_object(dev_zmo);
-  if(dev_zms != NULL) dt_opencl_release_mem_object(dev_zms);
+  dt_opencl_release_mem_object(dev_zmo);
+  dt_opencl_release_mem_object(dev_zms);
   dt_print(DT_DEBUG_OPENCL, "[opencl_zonesystem] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -457,7 +457,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_zonesystem_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_zonesystem_params_t));
   module->default_enabled = 0;
-  module->priority = 661; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 656; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_zonesystem_params_t);
   module->gui_data = NULL;
   dt_iop_zonesystem_params_t tmp = (dt_iop_zonesystem_params_t){

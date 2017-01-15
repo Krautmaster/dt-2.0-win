@@ -83,6 +83,9 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
   dt_develop_t *dev = self->dev;
   dt_iop_rawoverexposed_data_t *d = piece->data;
 
+  // 4BAYER is not supported by this module yet anyway.
+  const int ch = (dev->image_storage.flags & DT_IMAGE_4BAYER) ? 4 : 3;
+
   float threshold;
 
   // the clipping is detected as >1.0 after white level normalization
@@ -107,7 +110,7 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
     threshold = FLT_MAX;
 
     // so to detect the color clipping, we need to take white balance into account.
-    for(int k = 0; k < 4; k++) threshold = fminf(threshold, piece->pipe->dsc.temperature.coeffs[k]);
+    for(int k = 0; k < ch; k++) threshold = fminf(threshold, piece->pipe->dsc.temperature.coeffs[k]);
   }
   else
   {
@@ -116,7 +119,7 @@ static void process_common_setup(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *
 
   threshold *= dev->rawoverexposed.threshold;
 
-  for(int k = 0; k < 4; k++)
+  for(int k = 0; k < ch; k++)
   {
     // here is our threshold
     float chthr = threshold;
@@ -387,23 +390,23 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   err = dt_opencl_enqueue_kernel_2d(devid, kernel, sizes);
   if(err != CL_SUCCESS) goto error;
 
-  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
-  if(dev_colors != NULL) dt_opencl_release_mem_object(dev_colors);
-  if(dev_thresholds != NULL) dt_opencl_release_mem_object(dev_thresholds);
-  if(dev_coord != NULL) dt_opencl_release_mem_object(dev_coord);
-  if(coordbuf != NULL) dt_free_align(coordbuf);
-  if(dev_raw != NULL) dt_opencl_release_mem_object(dev_raw);
+  dt_opencl_release_mem_object(dev_xtrans);
+  dt_opencl_release_mem_object(dev_colors);
+  dt_opencl_release_mem_object(dev_thresholds);
+  dt_opencl_release_mem_object(dev_coord);
+  dt_free_align(coordbuf);
+  dt_opencl_release_mem_object(dev_raw);
   dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
 
   return TRUE;
 
 error:
-  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
-  if(dev_colors != NULL) dt_opencl_release_mem_object(dev_colors);
-  if(dev_thresholds != NULL) dt_opencl_release_mem_object(dev_thresholds);
-  if(dev_coord != NULL) dt_opencl_release_mem_object(dev_coord);
-  if(coordbuf != NULL) dt_free_align(coordbuf);
-  if(dev_raw != NULL) dt_opencl_release_mem_object(dev_raw);
+  dt_opencl_release_mem_object(dev_xtrans);
+  dt_opencl_release_mem_object(dev_colors);
+  dt_opencl_release_mem_object(dev_thresholds);
+  dt_opencl_release_mem_object(dev_coord);
+  dt_free_align(coordbuf);
+  dt_opencl_release_mem_object(dev_raw);
   dt_mipmap_cache_release(darktable.mipmap_cache, &buf);
   dt_print(DT_DEBUG_OPENCL, "[opencl_rawoverexposed] couldn't enqueue kernel! %d\n", err);
   return FALSE;
@@ -496,7 +499,7 @@ void init(dt_iop_module_t *module)
   module->default_params = calloc(1, sizeof(dt_iop_rawoverexposed_t));
   module->hide_enable_button = 1;
   module->default_enabled = 1;
-  module->priority = 924; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 940; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_rawoverexposed_t);
   module->gui_data = NULL;
 }

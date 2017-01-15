@@ -16,8 +16,7 @@
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef DT_DEVELOP_MASKS_H
-#define DT_DEVELOP_MASKS_H
+#pragma once
 
 #include "common/opencl.h"
 #include "develop/pixelpipe.h"
@@ -374,9 +373,9 @@ static inline
 float dt_masks_dynbuf_get(dt_masks_dynbuf_t *a, int offset)
 {
   assert(a != NULL);
-  // offset: must be negative distance relative to end of buffer or zero
-  assert(offset <= 0);
-  // assert(a->pos + offset >= 0);
+  // offset: must be negative distance relative to end of buffer
+  assert(offset < 0);
+  assert((long)a->pos + offset >= 0);
   return (a->buffer[a->pos + offset]);
 }
 
@@ -384,9 +383,9 @@ static inline
 void dt_masks_dynbuf_set(dt_masks_dynbuf_t *a, int offset, float value)
 {
   assert(a != NULL);
-  // offset: must be negative distance relative to end of buffer or zero
-  assert(offset <= 0);
-  // assert(a->pos + offset >= 0);
+  // offset: must be negative distance relative to end of buffer
+  assert(offset < 0);
+  assert((long)a->pos + offset >= 0);
   a->buffer[a->pos + offset] = value;
 }
 
@@ -432,7 +431,6 @@ void dt_masks_dynbuf_free(dt_masks_dynbuf_t *a)
   free(a);
 }
 
-#endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

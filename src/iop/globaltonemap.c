@@ -484,8 +484,8 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
 
 error:
   if(b) dt_bilateral_free_cl(b);
-  if(dev_m != NULL) dt_opencl_release_mem_object(dev_m);
-  if(dev_r != NULL) dt_opencl_release_mem_object(dev_r);
+  dt_opencl_release_mem_object(dev_m);
+  dt_opencl_release_mem_object(dev_r);
   dt_print(DT_DEBUG_OPENCL, "[opencl_global_tonemap] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -647,7 +647,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_global_tonemap_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_global_tonemap_params_t));
   module->default_enabled = 0;
-  module->priority = 538; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 537; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_global_tonemap_params_t);
   module->gui_data = NULL;
   dt_iop_global_tonemap_params_t tmp

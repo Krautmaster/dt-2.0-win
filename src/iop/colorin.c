@@ -437,12 +437,12 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_m != NULL) dt_opencl_release_mem_object(dev_m);
-  if(dev_l != NULL) dt_opencl_release_mem_object(dev_l);
-  if(dev_r != NULL) dt_opencl_release_mem_object(dev_r);
-  if(dev_g != NULL) dt_opencl_release_mem_object(dev_g);
-  if(dev_b != NULL) dt_opencl_release_mem_object(dev_b);
-  if(dev_coeffs != NULL) dt_opencl_release_mem_object(dev_coeffs);
+  dt_opencl_release_mem_object(dev_m);
+  dt_opencl_release_mem_object(dev_l);
+  dt_opencl_release_mem_object(dev_r);
+  dt_opencl_release_mem_object(dev_g);
+  dt_opencl_release_mem_object(dev_b);
+  dt_opencl_release_mem_object(dev_coeffs);
   dt_print(DT_DEBUG_OPENCL, "[opencl_colorin] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -736,9 +736,9 @@ static void process_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_d
   }
 }
 
-void process_cmatrix_fastpath(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
-                              void *const ovoid, const dt_iop_roi_t *const roi_in,
-                              const dt_iop_roi_t *const roi_out)
+static void process_cmatrix_fastpath(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                     const void *const ivoid, void *const ovoid, const dt_iop_roi_t *const roi_in,
+                                     const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int clipping = (d->nrgb != NULL);
@@ -974,9 +974,9 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
 }
 
 #if defined(__SSE2__)
-void process_sse2_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const void *const ivoid,
-                             void *const ovoid, const dt_iop_roi_t *const roi_in,
-                             const dt_iop_roi_t *const roi_out)
+static void process_sse2_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                    const void *const ivoid, void *const ovoid, const dt_iop_roi_t *const roi_in,
+                                    const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int ch = piece->colors;
@@ -1045,9 +1045,10 @@ void process_sse2_cmatrix_bm(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_
   _mm_sfence();
 }
 
-void process_sse2_cmatrix_fastpath_simple(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
-                                          const void *const ivoid, void *const ovoid,
-                                          const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
+static void process_sse2_cmatrix_fastpath_simple(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                                 const void *const ivoid, void *const ovoid,
+                                                 const dt_iop_roi_t *const roi_in,
+                                                 const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int ch = piece->colors;
@@ -1077,9 +1078,10 @@ void process_sse2_cmatrix_fastpath_simple(struct dt_iop_module_t *self, dt_dev_p
   _mm_sfence();
 }
 
-void process_sse2_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
-                                            const void *const ivoid, void *const ovoid,
-                                            const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
+static void process_sse2_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                                   const void *const ivoid, void *const ovoid,
+                                                   const dt_iop_roi_t *const roi_in,
+                                                   const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int ch = piece->colors;
@@ -1118,9 +1120,9 @@ void process_sse2_cmatrix_fastpath_clipping(struct dt_iop_module_t *self, dt_dev
   _mm_sfence();
 }
 
-void process_sse2_cmatrix_fastpath(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
-                                   const void *const ivoid, void *const ovoid, const dt_iop_roi_t *const roi_in,
-                                   const dt_iop_roi_t *const roi_out)
+static void process_sse2_cmatrix_fastpath(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                          const void *const ivoid, void *const ovoid,
+                                          const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int clipping = (d->nrgb != NULL);
@@ -1135,9 +1137,9 @@ void process_sse2_cmatrix_fastpath(struct dt_iop_module_t *self, dt_dev_pixelpip
   }
 }
 
-void process_sse2_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
-                                 const void *const ivoid, void *const ovoid, const dt_iop_roi_t *const roi_in,
-                                 const dt_iop_roi_t *const roi_out)
+static void process_sse2_cmatrix_proper(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece,
+                                        const void *const ivoid, void *const ovoid,
+                                        const dt_iop_roi_t *const roi_in, const dt_iop_roi_t *const roi_out)
 {
   const dt_iop_colorin_data_t *const d = (dt_iop_colorin_data_t *)piece->data;
   const int ch = piece->colors;
@@ -1754,7 +1756,6 @@ void reload_defaults(dt_iop_module_t *module)
   }
   else
     use_eprofile = TRUE; // the image has a profile assigned
-  dt_image_cache_write_release(darktable.image_cache, img, DT_IMAGE_CACHE_RELAXED);
 
   if(img->flags & DT_IMAGE_4BAYER) // 4Bayer images have been pre-converted to rec2020
     tmp.type = DT_COLORSPACE_LIN_REC709;
@@ -1769,6 +1770,8 @@ void reload_defaults(dt_iop_module_t *module)
   else if(!isnan(module->dev->image_storage.d65_color_matrix[0]))
     tmp.type = DT_COLORSPACE_EMBEDDED_MATRIX;
 
+  dt_image_cache_write_release(darktable.image_cache, img, DT_IMAGE_CACHE_RELAXED);
+
 end:
   memcpy(module->params, &tmp, sizeof(dt_iop_colorin_params_t));
   memcpy(module->default_params, &tmp, sizeof(dt_iop_colorin_params_t));
@@ -1781,7 +1784,7 @@ void init(dt_iop_module_t *module)
   module->default_params = calloc(1, sizeof(dt_iop_colorin_params_t));
   module->params_size = sizeof(dt_iop_colorin_params_t);
   module->gui_data = NULL;
-  module->priority = 353; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 343; // module order created by iop_dependencies.py, do not edit!
   module->hide_enable_button = 1;
   module->default_enabled = 1;
 }

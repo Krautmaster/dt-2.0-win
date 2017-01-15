@@ -1,7 +1,7 @@
 /*
     This file is part of darktable,
     copyright (c) 2009--2011 johannes hanika.
-    copyright (c) 2014-2015 LebedevRI.
+    copyright (c) 2014-2016 Roman Lebedev.
 
     darktable is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -156,20 +156,20 @@ static void dt_iop_levels_compute_levels_manual(const uint32_t *histogram, float
   if(!histogram) return;
 
   // search histogram for min (search from bottom)
-  for(int k = 0; k <= 4 * 63; k += 4)
+  for(int k = 0; k <= 4 * 255; k += 4)
   {
     if(histogram[k] > 1)
     {
-      levels[0] = ((float)(k) / (4 * 64));
+      levels[0] = ((float)(k) / (4 * 256));
       break;
     }
   }
   // then for max (search from top)
-  for(int k = 4 * 63; k >= 0; k -= 4)
+  for(int k = 4 * 255; k >= 0; k -= 4)
   {
     if(histogram[k] > 1)
     {
-      levels[2] = ((float)(k) / (4 * 64));
+      levels[2] = ((float)(k) / (4 * 256));
       break;
     }
   }
@@ -365,7 +365,7 @@ int process_cl(dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_mem dev_
   return TRUE;
 
 error:
-  if(dev_lut != NULL) dt_opencl_release_mem_object(dev_lut);
+  dt_opencl_release_mem_object(dev_lut);
   dt_print(DT_DEBUG_OPENCL, "[opencl_levels] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -395,7 +395,7 @@ void commit_params(dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pixelpipe_
 
   piece->request_histogram |= (DT_REQUEST_ONLY_IN_GUI);
 
-  piece->histogram_params.bins_count = 64;
+  piece->histogram_params.bins_count = 256;
 
   if(p->mode == LEVELS_MODE_AUTOMATIC)
   {
@@ -493,7 +493,7 @@ void init(dt_iop_module_t *self)
   self->default_params = calloc(1, sizeof(dt_iop_levels_params_t));
   self->default_enabled = 0;
   self->request_histogram |= (DT_REQUEST_ON);
-  self->priority = 649; // module order created by iop_dependencies.py, do not edit!
+  self->priority = 686; // module order created by iop_dependencies.py, do not edit!
   self->params_size = sizeof(dt_iop_levels_params_t);
   self->gui_data = NULL;
 }
@@ -841,7 +841,7 @@ static gboolean dt_iop_levels_area_draw(GtkWidget *widget, cairo_t *crf, gpointe
     if(hist && hist_max > 0.0f)
     {
       cairo_save(cr);
-      cairo_scale(cr, width / 63.0, -(height - DT_PIXEL_APPLY_DPI(5)) / hist_max);
+      cairo_scale(cr, width / 255.0, -(height - DT_PIXEL_APPLY_DPI(5)) / hist_max);
       cairo_set_source_rgba(cr, .2, .2, .2, 0.5);
       dt_draw_histogram_8(cr, hist, 0, dev->histogram_type == DT_DEV_HISTOGRAM_LINEAR); // TODO: make draw
                                                                                         // handle waveform

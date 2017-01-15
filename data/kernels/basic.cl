@@ -50,6 +50,27 @@ rawprepare_1f(read_only image2d_t in, write_only image2d_t out,
 }
 
 kernel void
+rawprepare_1f_unnormalized(read_only image2d_t in, write_only image2d_t out,
+                           const int width, const int height,
+                           const int cx, const int cy,
+                           global const float *sub, global const float *div,
+                           const int rx, const int ry)
+{
+  const int x = get_global_id(0);
+  const int y = get_global_id(1);
+
+  if(x < cx || y < cy) return;
+  if(x >= width + cx || y >= height + cy) return;
+
+  const float pixel = read_imagef(in, sampleri, (int2)(x, y)).x;
+
+  const int id = BL(ry+cy+y, rx+cx+x);
+  const float pixel_scaled = (pixel - sub[id]) / div[id];
+
+  write_imagef(out, (int2)(x-cx, y-cy), (float4)(pixel_scaled, 0.0f, 0.0f, 0.0f));
+}
+
+kernel void
 rawprepare_4f(read_only image2d_t in, write_only image2d_t out,
               const int width, const int height,
               const int cx, const int cy,
@@ -461,25 +482,6 @@ lookup(read_only image2d_t lut, const float x)
   int2 p = (int2)((xi & 0xff), (xi >> 8));
   return read_imagef(lut, sampleri, p).x;
 }
-
-/* kernel for the basecurve plugin. */
-kernel void
-basecurve (read_only image2d_t in, write_only image2d_t out, const int width, const int height,
-           read_only image2d_t table, global float *a)
-{
-  const int x = get_global_id(0);
-  const int y = get_global_id(1);
-
-  if(x >= width || y >= height) return;
-
-  float4 pixel = read_imagef(in, sampleri, (int2)(x, y));
-  // use lut or extrapolation:
-  pixel.x = lookup_unbounded(table, pixel.x, a);
-  pixel.y = lookup_unbounded(table, pixel.y, a);
-  pixel.z = lookup_unbounded(table, pixel.z, a);
-  write_imagef (out, (int2)(x, y), pixel);
-}
-
 
 
 /* kernel for the plugin colorin: unbound processing */
@@ -2050,10 +2052,12 @@ rawoverexposed_falsecolor (
   if(raw_pixel < threshold[c]) return;
 
   float4 pixel = read_imagef(in, sampleri, (int2)(x, y));
-  float4 *p = &pixel;
 
+  float p[4];
+  vstore4(pixel, 0, p);
   // falsecolor
-  p[c] = 0.0;
+  p[c] = 0.0f;
+  pixel = vload4(0, p);
 
   write_imagef (out, (int2)(x, y), pixel);
 }

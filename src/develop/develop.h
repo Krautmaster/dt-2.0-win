@@ -15,8 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef DARKTABLE_DEVELOP_H
-#define DARKTABLE_DEVELOP_H
+
+#pragma once
 
 #include <cairo.h>
 #include <glib.h>
@@ -144,6 +144,8 @@ typedef struct dt_develop_t
   GList *forms;
   struct dt_masks_form_t *form_visible;
   struct dt_masks_form_gui_t *form_gui;
+  // all forms to be linked here for cleanup:
+  GList *allforms;
 
   //full preview stuff
   int full_preview;
@@ -359,7 +361,6 @@ uint64_t dt_dev_hash_distort(dt_develop_t *dev);
 /** same function, but we can specify iop with priority between pmin and pmax */
 uint64_t dt_dev_hash_distort_plus(dt_develop_t *dev, struct dt_dev_pixelpipe_t *pipe, int pmin, int pmax);
 
-#endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

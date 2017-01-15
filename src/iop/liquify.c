@@ -255,7 +255,6 @@ typedef struct {
 
   cairo_t *fake_cr;     ///< A fake cairo context for hit testing and coordinate transform.
 
-  gboolean mouse_pointer_in_widget;
   GtkLabel *label;
   GtkToggleButton *btn_point_tool, *btn_line_tool, *btn_curve_tool, *btn_node_tool;
 
@@ -1188,8 +1187,12 @@ void modify_roi_in (struct dt_iop_module_t *module,
 
   distort_paths_raw_to_piece (module, piece->pipe, roi_in->scale, &copy_params);
 
-  cairo_rectangle_int_t pipe_rect
-      = { 0, 0, piece->buf_in.width * roi_in->scale, piece->buf_in.height * roi_in->scale };
+  cairo_rectangle_int_t pipe_rect = {
+    0,
+    0,
+    lroundf((double)piece->buf_in.width * roi_in->scale),
+    lroundf((double)piece->buf_in.height * roi_in->scale)
+  };
 
   cairo_rectangle_int_t roi_in_rect = {
     roi_in->x,
@@ -1454,12 +1457,12 @@ static cl_int_t apply_global_distortion_map_cl (struct dt_iop_module_t *module,
 
 error:
 
-  if (dev_kernel    ) dt_opencl_release_mem_object (dev_kernel);
-  if (dev_kdesc     ) dt_opencl_release_mem_object (dev_kdesc);
-  if (dev_map_extent) dt_opencl_release_mem_object (dev_map_extent);
-  if (dev_map       ) dt_opencl_release_mem_object (dev_map);
-  if (dev_roi_out   ) dt_opencl_release_mem_object (dev_roi_out);
-  if (dev_roi_in    ) dt_opencl_release_mem_object (dev_roi_in);
+  dt_opencl_release_mem_object (dev_kernel);
+  dt_opencl_release_mem_object (dev_kdesc);
+  dt_opencl_release_mem_object (dev_map_extent);
+  dt_opencl_release_mem_object (dev_map);
+  dt_opencl_release_mem_object (dev_roi_out);
+  dt_opencl_release_mem_object (dev_roi_in);
   if (k             ) free (k);
 
   return err;
@@ -1531,7 +1534,7 @@ void init (dt_iop_module_t *module)
 {
   // module is disabled by default
   module->default_enabled = 0;
-  module->priority = 230; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 223; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_liquify_params_t);
   module->gui_data = NULL;
 
@@ -2607,7 +2610,15 @@ void gui_post_expose (struct dt_iop_module_t *module,
 void gui_focus (struct dt_iop_module_t *module, gboolean in)
 {
   dt_iop_liquify_gui_data_t *g = (dt_iop_liquify_gui_data_t *) module->gui_data;
-  g->mouse_pointer_in_widget = module->enabled && in;
+
+  if (!in)
+  {
+    dt_control_hinter_message (darktable.control, "");
+    gtk_toggle_button_set_active (g->btn_point_tool, FALSE);
+    gtk_toggle_button_set_active (g->btn_line_tool,  FALSE);
+    gtk_toggle_button_set_active (g->btn_curve_tool, FALSE);
+    gtk_toggle_button_set_active (g->btn_node_tool,  FALSE);
+  }
 }
 
 static void sync_pipe (struct dt_iop_module_t *module, gboolean history)
@@ -3017,6 +3028,7 @@ int button_released (struct dt_iop_module_t *module,
   // right click == cancel or delete
   if (which == 3)
   {
+    dt_control_hinter_message (darktable.control, "");
     end_drag (g);
 
     // cancel line or curve creation
@@ -3238,12 +3250,14 @@ static void btn_make_radio_callback (GtkToggleButton *btn, dt_iop_module_t *modu
       dt_control_hinter_message (darktable.control, _("click to edit nodes"));
   }
   sync_pipe (module, FALSE);
+  dt_iop_request_focus(module);
 }
 
 void gui_update (dt_iop_module_t *module)
 {
   dt_iop_liquify_gui_data_t *g = (dt_iop_liquify_gui_data_t *) module->gui_data;
   memcpy(&g->params, module->params, sizeof(dt_iop_liquify_params_t));
+  update_warp_count(g);
 }
 
 void gui_init (dt_iop_module_t *module)
@@ -3264,7 +3278,6 @@ void gui_init (dt_iop_module_t *module)
   g->last_mouse_pos =
   g->last_button1_pressed_pos = -1;
   g->last_hit = NOWHERE;
-  g->mouse_pointer_in_widget = 0;
   dt_pthread_mutex_init (&g->lock, NULL);
   g->node_index = 0;
 
@@ -3311,17 +3324,18 @@ void gui_init (dt_iop_module_t *module)
 
   gtk_box_pack_start(GTK_BOX(module->widget), hbox, TRUE, TRUE, 0);
 
-  dt_liquify_layers[DT_LIQUIFY_LAYER_PATH].hint           = _("ctrl-click to add node\nright click to remove path");
-  dt_liquify_layers[DT_LIQUIFY_LAYER_CENTERPOINT].hint    = _("click and drag to move - click : linear or feathered\n"
-                                                              "ctrl-click : autosmooth, cusp, smooth, symmetrical\n"
-                                                              "right click to remove");
+  dt_liquify_layers[DT_LIQUIFY_LAYER_PATH].hint           = _("ctrl-click: add node - right click: remove path\n"
+                                                              "ctrl-alt-click: toggle line/curve");
+  dt_liquify_layers[DT_LIQUIFY_LAYER_CENTERPOINT].hint    = _("click and drag to move - click: show/hide feathering controls\n"
+                                                              "ctrl-click: autosmooth, cusp, smooth, symmetrical"
+                                                              " - right click to remove");
   dt_liquify_layers[DT_LIQUIFY_LAYER_CTRLPOINT1].hint     = _("drag to change shape of path");
   dt_liquify_layers[DT_LIQUIFY_LAYER_CTRLPOINT2].hint     = _("drag to change shape of path");
   dt_liquify_layers[DT_LIQUIFY_LAYER_RADIUSPOINT].hint    = _("drag to adjust warp radius");
   dt_liquify_layers[DT_LIQUIFY_LAYER_HARDNESSPOINT1].hint = _("drag to adjust hardness (center)");
   dt_liquify_layers[DT_LIQUIFY_LAYER_HARDNESSPOINT2].hint = _("drag to adjust hardness (feather)");
   dt_liquify_layers[DT_LIQUIFY_LAYER_STRENGTHPOINT].hint  = _("drag to adjust warp strength\n"
-                                                              "ctrl-click : linear, grow, and shrink");
+                                                              "ctrl-click: linear, grow, and shrink");
 }
 
 void gui_cleanup (dt_iop_module_t *module)

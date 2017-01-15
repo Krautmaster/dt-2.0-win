@@ -68,7 +68,7 @@ remove_all_children(types.dt_lua_lib_t.views)
 --  TOPLEVEL        --
 ----------------------
 local prefix
-if real_darktable.configuration.api_version_suffix == "" then
+if real_darktable.configuration.api_version_suffix ~= "" then
   prefix = [[This documentation is for the *development* version of darktable. for the stable version, please visit the user manual]]..para()
 else
   prefix = ""
@@ -84,7 +84,9 @@ darktable:set_text([[The darktable library is the main entry point for all acces
 darktable.print:set_text([[Will print a string to the darktable control log (the long overlayed window that appears over the main panel).]])
 darktable.print:add_parameter("message","string",[[The string to display which should be a single line.]])
 
-darktable.print_error:set_text([[This function will print its parameter if the Lua logdomain is activated. Start darktable with the "-d lua" command line option to enable the Lua logdomain.]])
+darktable.print_log:set_text([[This function will print its parameter if the Lua logdomain is activated. Start darktable with the "-d lua" command line option to enable the Lua logdomain.]])
+darktable.print_log:add_parameter("message","string",[[The string to display.]])
+darktable.print_error:set_text([[This function is similar to]]..my_tostring(darktable.print_log)..[[ but adds an ERROR prefix for clarity.)
 darktable.print_error:add_parameter("message","string",[[The string to display.]])
 
 darktable.register_event:set_text([[This function registers a callback to be called when a given event happens.]]..para()..
@@ -524,7 +526,7 @@ darktable.control.sleep:add_parameter("delay","int","The delay in millisecond to
 darktable.control.execute:set_text("Run a command in a shell while not blocking darktable")
 darktable.control.execute:add_parameter("command","string","The command to run, as in 'sh -c'")
 darktable.control.execute:add_return("int","The result of the system call")
-darktable.control.read:set_text("Block until a file is readable while not blocking darktable")
+darktable.control.read:set_text("Block until a file is readable while not blocking darktable"..para()..emphasis("This function is not available on Windows builds"))
 darktable.control.read:add_parameter("file","file","The file object to wait for")
 
 
@@ -681,11 +683,11 @@ darktable.debug.type:set_text([[Similar to the system function type() but it wil
 	types.dt_imageio_module_format_data_webp.quality:set_text([[The quality to use at export time.]])
 	types.dt_imageio_module_format_data_webp.comp_type:set_text([[The overall quality to use; can be one of "webp_lossy" or "webp_lossless".]]):set_reported_type(types.comp_type_t);
 	types.dt_imageio_module_format_data_webp.hint:set_text([[A hint on the overall content of the image.]]):set_reported_type(types.hint_t)
-	--types.dt_imageio_module_format_data_j2k:set_text([[Type object describing parameters to export to jpeg2000.]])
-	--types.dt_imageio_module_format_data_j2k.quality:set_text([[The quality to use at export time.]])
-	--types.dt_imageio_module_format_data_j2k.bpp:set_text([[The bpp parameter to use when exporting.]])
-	--types.dt_imageio_module_format_data_j2k.format:set_text([[The format to use.]]):set_reported_type(types.dt_imageio_j2k_format_t)
-	--types.dt_imageio_module_format_data_j2k.preset:set_text([[The preset to use.]]):set_reported_type(types.dt_imageio_j2k_preset_t)
+	types.dt_imageio_module_format_data_j2k:set_text([[Type object describing parameters to export to jpeg2000.]])
+	types.dt_imageio_module_format_data_j2k.quality:set_text([[The quality to use at export time.]])
+	types.dt_imageio_module_format_data_j2k.bpp:set_text([[The bpp parameter to use when exporting.]])
+	types.dt_imageio_module_format_data_j2k.format:set_text([[The format to use.]]):set_reported_type(types.dt_imageio_j2k_format_t)
+	types.dt_imageio_module_format_data_j2k.preset:set_text([[The preset to use.]]):set_reported_type(types.dt_imageio_j2k_preset_t)
 
 
 	types.dt_imageio_module_format_data_pdf:set_text([[Type object describing parameters to export to pdf.]])
@@ -788,8 +790,8 @@ darktable.debug.type:set_text([[Similar to the system function type() but it wil
 	types.hint_t:set_text([[a hint on the way to encode a webp image]])
 	types.dt_ui_container_t:set_text([[A place in the darktable UI where a lib can be placed]])
 	types.snapshot_direction_t:set_text([[Which part of the main window is occupied by a snapshot]])
-	--types.dt_imageio_j2k_format_t:set_text([[J2K format type]])
-	--types.dt_imageio_j2k_preset_t:set_text([[J2K preset type]])
+	types.dt_imageio_j2k_format_t:set_text([[J2K format type]])
+	types.dt_imageio_j2k_preset_t:set_text([[J2K preset type]])
 	types.comp_type_t:set_text([[Type of compression for webp]])
 	types.lua_pref_type:set_text([[The type of value to save in a preference]])
 
@@ -1049,6 +1051,7 @@ local widget = dt.new_widget("button"){
 	events["global_toolbox-overlay_toggle"].extra_registration_parameters:set_text([[This event has no extra registration parameters.]])
 
   events["mouse-over-image-changed"]:set_text([[This event is triggered whenever the image under the mouse changes]])
+	events["mouse-over-image-changed"].callback:add_parameter("event","string",[[The name of the event that triggered the callback.]])
   events["mouse-over-image-changed"].callback:add_parameter("image",types.dt_lua_image_t,[[The new image under the mouse, can be nil if there is no image under the mouse]])
 	events["mouse-over-image-changed"].extra_registration_parameters:set_text([[This event has no extra registration parameters.]])
   events["exit"]:set_text([[This event is triggered when darktable exits, it allows lua scripts to do cleanup jobs]])
@@ -1076,12 +1079,10 @@ local widget = dt.new_widget("button"){
 	invisible_attr(attributes.internal_attr)
 	invisible_attr(attributes.read)
 	invisible_attr(attributes.has_pairs)
-	invisible_attr(attributes.has_ipairs)
 	invisible_attr(attributes.is_self)
 	invisible_attr(attributes.has_length)
 	attributes.write:set_text([[This object is a variable that can be written to.]])
   --attributes.has_pairs:set_text([[This object can be used as an argument to the system function "pairs" and iterated upon.]])
-	--attributes.has_ipairs:set_text([[This object can be used as an argument to the system function "ipairs" and iterated upon.]])
 	--attributes.has_equal:set_text([[This object has a specific comparison function that will be used when comparing it to an object of the same type.]])
 	--attributes.has_length:set_text([[This object has a specific length function that will be used by the # operator.]])
 	attributes.has_tostring:set_text([[This object has a specific reimplementation of the "tostring" method that allows pretty-printing it.]])

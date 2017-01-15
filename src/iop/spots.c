@@ -422,9 +422,9 @@ void process(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, const 
         }
 
         // convert from world space:
-        float rad10[2] = { circle->radius, circle->radius };
+        float radius10[2] = { circle->radius, circle->radius };
         float radf[2];
-        masks_point_denormalize(piece, roi_in, rad10, 1, radf);
+        masks_point_denormalize(piece, roi_in, radius10, 1, radf);
 
         const int rad = MIN(radf[0], radf[1]);
         const int posx = points[0] - rad;
@@ -538,7 +538,7 @@ void init(dt_iop_module_t *module)
   // our module is disabled by default
   // by default:
   module->default_enabled = 0;
-  module->priority = 184; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 179; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_spots_params_t);
   module->gui_data = NULL;
   // init defaults:
@@ -568,13 +568,9 @@ void gui_focus(struct dt_iop_module_t *self, gboolean in)
     }
     else
     {
-      // lost focus, hide all shapes and free if some are in creation
+      // lost focus, hide all shapes
       if (darktable.develop->form_gui->creation && darktable.develop->form_gui->creation_module == self)
-      {
-        dt_masks_form_t *form = darktable.develop->form_visible;
-        if(form) dt_masks_free_form(form);
         dt_masks_change_form_gui(NULL);
-      }
       dt_iop_spots_gui_data_t *g = (dt_iop_spots_gui_data_t *)self->gui_data;
       gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_path), FALSE);
       gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(g->bt_circle), FALSE);

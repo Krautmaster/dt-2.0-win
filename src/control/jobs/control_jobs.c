@@ -20,7 +20,6 @@
 #include "common/collection.h"
 #include "common/darktable.h"
 #include "common/debug.h"
-#include "common/debug.h"
 #include "common/exif.h"
 #include "common/film.h"
 #include "common/gpx.h"
@@ -964,13 +963,13 @@ static int32_t dt_control_delete_images_job_run(dt_job_t *job)
       dt_image_path_append_version(imgid, filename, sizeof(filename));
       g_strlcat(filename, ".xmp", sizeof(filename));
 
-      delete_status = delete_file_from_disk(filename);
-      if (delete_status == _DT_DELETE_STATUS_OK_TO_REMOVE)
-      {
-        snprintf(imgidstr, sizeof(imgidstr), "%d", imgid);
-        _set_remove_flag(imgidstr);
-        dt_image_remove(imgid);
-      }
+      // remove image from db first ...
+      snprintf(imgidstr, sizeof(imgidstr), "%d", imgid);
+      _set_remove_flag(imgidstr);
+      dt_image_remove(imgid);
+
+      // ... and delete afterwards because removing will re-write the XMP
+      delete_file_from_disk(filename);
     }
 
 delete_next_file:
@@ -1262,8 +1261,7 @@ end:
   mformat->free_params(mformat, fdata);
 
   // notify the user via the window manager
-  if(darktable.gui)
-    gtk_window_set_urgency_hint(GTK_WINDOW(dt_ui_main_window(darktable.gui->ui)), TRUE);
+  dt_ui_notify_user();
 
   return 0;
 }

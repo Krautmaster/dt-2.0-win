@@ -37,7 +37,7 @@
 
 // whenever _create_*_schema() gets changed you HAVE to bump this version and add an update path to
 // _upgrade_*_schema_step()!
-#define CURRENT_DATABASE_VERSION_LIBRARY 14
+#define CURRENT_DATABASE_VERSION_LIBRARY 15
 #define CURRENT_DATABASE_VERSION_DATA 1
 
 typedef struct dt_database_t
@@ -52,6 +52,8 @@ typedef struct dt_database_t
 
   /* ondisk DB */
   sqlite3 *handle;
+
+  gchar *error_message, *error_dbfilename;
 } dt_database_t;
 
 
@@ -943,6 +945,28 @@ static int _upgrade_library_schema_step(dt_database_t *db, int version)
 
     sqlite3_exec(db->handle, "COMMIT", NULL, NULL, NULL);
     new_version = 14;
+  }
+  else if(version == 14)
+  {
+    // 13 -> fix the index on used_tags to be a UNIQUE index :-/
+    sqlite3_exec(db->handle, "BEGIN TRANSACTION", NULL, NULL, NULL);
+
+    TRY_EXEC("DELETE FROM main.used_tags WHERE rowid NOT IN (SELECT rowid FROM used_tags GROUP BY id)",
+             "[init] can't delete duplicated entries from `used_tags' in database\n");
+
+    TRY_EXEC("DROP INDEX main.used_tags_idx", "[init] can't drop index `used_tags_idx' from database\n");
+
+    TRY_EXEC("CREATE UNIQUE INDEX main.used_tags_idx ON used_tags (id, name)",
+             "[init] can't create index `used_tags_idx' in database\n");
+
+    TRY_EXEC("DELETE FROM main.tagged_images WHERE tagid IS NULL",
+             "[init] can't delete NULL entries from `tagged_images' in database");
+
+    TRY_EXEC("DELETE FROM main.used_tags WHERE id NOT IN (SELECT DISTINCT tagid FROM main.tagged_images)",
+             "[init] can't delete unused tags from `used_tags' in database\n");
+
+    sqlite3_exec(db->handle, "COMMIT", NULL, NULL, NULL);
+    new_version = 15;
   } // maybe in the future, see commented out code elsewhere
     //   else if(version == XXX)
     //   {
@@ -1086,7 +1110,7 @@ static void _create_library_schema(dt_database_t *db)
   sqlite3_exec(db->handle, "CREATE INDEX main.tagged_images_tagid_index ON tagged_images (tagid)", NULL, NULL, NULL);
   ////////////////////////////// used_tags
   sqlite3_exec(db->handle, "CREATE TABLE main.used_tags (id INTEGER, name VARCHAR NOT NULL)", NULL, NULL, NULL);
-  sqlite3_exec(db->handle, "CREATE INDEX main.used_tags_idx ON used_tags (id, name)", NULL, NULL, NULL);
+  sqlite3_exec(db->handle, "CREATE UNIQUE INDEX main.used_tags_idx ON used_tags (id, name)", NULL, NULL, NULL);
   ////////////////////////////// color_labels
   sqlite3_exec(db->handle, "CREATE TABLE main.color_labels (imgid INTEGER, color INTEGER)", NULL, NULL, NULL);
   sqlite3_exec(db->handle, "CREATE UNIQUE INDEX main.color_labels_idx ON color_labels (imgid, color)", NULL, NULL,
@@ -1306,7 +1330,30 @@ static gboolean _synchronize_tags(dt_database_t *db)
 #undef TRY_PREPARE
 #undef FINALIZE
 
-static gboolean _lock_single_database(const char *dbfilename, char **lockfile)
+void dt_database_show_error(const dt_database_t *db)
+{
+  if(!db->lock_acquired)
+  {
+    char *label_text = g_markup_printf_escaped(_("an error has occured while trying to open the database from\n"
+                                                  "\n"
+                                                  "<span style=\"italic\">%s</span>\n"
+                                                  "\n"
+                                                  "%s\n"),
+                                                db->error_dbfilename, db->error_message ? db->error_message : "");
+
+    dt_gui_show_standalone_yes_no_dialog(_("darktable - error locking database"), label_text, _("close darktable"),
+                                         /*_("try again")*/NULL);
+
+    g_free(label_text);
+  }
+
+  g_free(db->error_message);
+  g_free(db->error_dbfilename);
+  ((dt_database_t *)db)->error_message = NULL;
+  ((dt_database_t *)db)->error_dbfilename = NULL;
+}
+
+static gboolean _lock_single_database(dt_database_t *db, const char *dbfilename, char **lockfile)
 {
   gboolean lock_acquired;
 
@@ -1366,17 +1413,20 @@ lock_again:
               stderr,
               "[init] the database lock file contains a pid that seems to be alive in your system: %d\n",
               other_pid);
+            db->error_message = g_strdup_printf(_("the database lock file contains a pid that seems to be alive in your system: %d"), other_pid);
           }
         }
         else
         {
           fprintf(stderr, "[init] the database lock file seems to be empty\n");
+          db->error_message = g_strdup_printf(_("the database lock file seems to be empty"));
         }
         close(fd);
       }
       else
       {
         fprintf(stderr, "[init] error opening the database lock file for reading\n");
+        db->error_message = g_strdup_printf(_("error opening the database lock file for reading"));
       }
     }
   }
@@ -1385,14 +1435,17 @@ lock_again:
 
 #endif
 
+  if(db->error_message)
+    db->error_dbfilename = g_strdup(dbfilename);
+
   return lock_acquired;
 }
 
 static gboolean _lock_databases(dt_database_t *db)
 {
-  if(!_lock_single_database(db->dbfilename_data, &db->lockfile_data))
+  if(!_lock_single_database(db, db->dbfilename_data, &db->lockfile_data))
     return FALSE;
-  if(!_lock_single_database(db->dbfilename_library, &db->lockfile_library))
+  if(!_lock_single_database(db, db->dbfilename_library, &db->lockfile_library))
   {
     // unlock data.db to not leave a stale lock file around
     g_unlink(db->lockfile_data);
@@ -1401,7 +1454,7 @@ static gboolean _lock_databases(dt_database_t *db)
   return TRUE;
 }
 
-dt_database_t *dt_database_init(const char *alternative)
+dt_database_t *dt_database_init(const char *alternative, const gboolean load_data)
 {
 start:
   /* migrate default database location to new default */
@@ -1440,7 +1493,10 @@ start:
 
   /* we also need a 2nd db with permanent data like presets, styles and tags */
   char dbfilename_data[PATH_MAX] = { 0 };
-  snprintf(dbfilename_data, sizeof(dbfilename_data), "%s/data.db", datadir);
+  if(load_data)
+    snprintf(dbfilename_data, sizeof(dbfilename_data), "%s/data.db", datadir);
+  else
+    snprintf(dbfilename_data, sizeof(dbfilename_data), ":memory:");
 
   /* create database */
   dt_database_t *db = (dt_database_t *)g_malloc0(sizeof(dt_database_t));
@@ -1486,7 +1542,7 @@ start:
 
   // attach the data database which contains presets, styles, tags and similar things not tied to single images
   sqlite3_stmt *stmt;
-  gboolean have_data_db = g_file_test(dbfilename_data, G_FILE_TEST_EXISTS);
+  gboolean have_data_db = load_data && g_file_test(dbfilename_data, G_FILE_TEST_EXISTS);
   int rc = sqlite3_prepare_v2(db->handle, "ATTACH DATABASE ?1 AS data", -1, &stmt, NULL);
   sqlite3_bind_text(stmt, 1, dbfilename_data, -1, SQLITE_TRANSIENT);
   if(rc != SQLITE_OK || sqlite3_step(stmt) != SQLITE_DONE)

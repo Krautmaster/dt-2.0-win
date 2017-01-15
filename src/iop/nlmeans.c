@@ -335,18 +335,18 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   err = dt_opencl_enqueue_kernel_2d(devid, gd->kernel_nlmeans_finish, sizes);
   if(err != CL_SUCCESS) goto error;
 
-  if(dev_U2 != NULL) dt_opencl_release_mem_object(dev_U2);
+  dt_opencl_release_mem_object(dev_U2);
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    if(buckets[k] != NULL) dt_opencl_release_mem_object(buckets[k]);
+    dt_opencl_release_mem_object(buckets[k]);
   }
   return TRUE;
 
 error:
-  if(dev_U2 != NULL) dt_opencl_release_mem_object(dev_U2);
+  dt_opencl_release_mem_object(dev_U2);
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    if(buckets[k] != NULL) dt_opencl_release_mem_object(buckets[k]);
+    dt_opencl_release_mem_object(buckets[k]);
   }
 
   dt_print(DT_DEBUG_OPENCL, "[opencl_nlmeans] couldn't enqueue kernel! %d\n", err);
@@ -728,7 +728,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_nlmeans_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_nlmeans_params_t));
   // about the first thing to do in Lab space:
-  module->priority = 523; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 522; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_nlmeans_params_t);
   module->gui_data = NULL;
   module->data = NULL;

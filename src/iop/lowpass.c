@@ -324,11 +324,11 @@ error:
   if(g) dt_gaussian_free_cl(g);
   if(b) dt_bilateral_free_cl(b);
 
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
-  if(dev_lcoeffs != NULL) dt_opencl_release_mem_object(dev_lcoeffs);
-  if(dev_lm != NULL) dt_opencl_release_mem_object(dev_lm);
-  if(dev_ccoeffs != NULL) dt_opencl_release_mem_object(dev_ccoeffs);
-  if(dev_cm != NULL) dt_opencl_release_mem_object(dev_cm);
+  dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_lcoeffs);
+  dt_opencl_release_mem_object(dev_lm);
+  dt_opencl_release_mem_object(dev_ccoeffs);
+  dt_opencl_release_mem_object(dev_cm);
   dt_print(DT_DEBUG_OPENCL, "[opencl_lowpass] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -601,7 +601,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_lowpass_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_lowpass_params_t));
   module->default_enabled = 0;
-  module->priority = 753; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 746; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_lowpass_params_t);
   module->gui_data = NULL;
   dt_iop_lowpass_params_t tmp = (dt_iop_lowpass_params_t){ 0, 10.0f, 1.0f, 0.0f, 1.0f, LOWPASS_ALGO_GAUSSIAN, 1 };

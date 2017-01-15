@@ -274,9 +274,9 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_L != NULL) dt_opencl_release_mem_object(dev_L);
-  if(dev_a != NULL) dt_opencl_release_mem_object(dev_a);
-  if(dev_b != NULL) dt_opencl_release_mem_object(dev_b);
+  dt_opencl_release_mem_object(dev_L);
+  dt_opencl_release_mem_object(dev_a);
+  dt_opencl_release_mem_object(dev_b);
   dt_print(DT_DEBUG_OPENCL, "[opencl_colorzones] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -380,7 +380,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_colorzones_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_colorzones_params_t));
   module->default_enabled = 0; // we're a rather slow and rare op.
-  module->priority = 600; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 597;      // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_colorzones_params_t);
   module->gui_data = NULL;
   dt_iop_colorzones_params_t tmp;

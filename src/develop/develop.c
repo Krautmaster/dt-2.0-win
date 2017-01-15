@@ -38,9 +38,9 @@
 #include "develop/imageop.h"
 #include "develop/lightroom.h"
 #include "develop/masks.h"
-#include "views/undo.h"
 #include "gui/gtk.h"
 #include "gui/presets.h"
+#include "views/undo.h"
 
 #define DT_DEV_AVERAGE_DELAY_START 250
 #define DT_DEV_PREVIEW_AVERAGE_DELAY_START 50
@@ -88,6 +88,11 @@ void dt_dev_init(dt_develop_t *dev, int32_t gui_attached)
   else if(g_strcmp0(mode, "waveform") == 0)
     dev->histogram_type = DT_DEV_HISTOGRAM_WAVEFORM;
   g_free(mode);
+
+  dev->forms = NULL;
+  dev->form_visible = NULL;
+  dev->form_gui = NULL;
+  dev->allforms = NULL;
 
   if(dev->gui_attached)
   {
@@ -153,6 +158,9 @@ void dt_dev_cleanup(dt_develop_t *dev)
   free(dev->histogram);
   free(dev->histogram_pre_tonecurve);
   free(dev->histogram_pre_levels);
+
+  g_list_free(dev->forms);
+  g_list_free_full(dev->allforms, (void (*)(void *))dt_masks_free_form);
 
   g_list_free_full(dev->proxy.exposure, g_free);
 
@@ -884,7 +892,7 @@ static void auto_apply_presets(dt_develop_t *dev)
                                  "?8 BETWEEN exposure_min AND exposure_max AND "
                                  "?9 BETWEEN aperture_min AND aperture_max AND "
                                  "?10 BETWEEN focal_length_min AND focal_length_max AND "
-                                 "(format = 0 OR format&?9!=0) ORDER BY writeprotect DESC, "
+                                 "(format = 0 OR format&?11!=0) ORDER BY writeprotect DESC, "
                                  "LENGTH(model), LENGTH(maker), LENGTH(lens)",
            preset_table[legacy]);
   // query for all modules at once:
@@ -896,13 +904,13 @@ static void auto_apply_presets(dt_develop_t *dev)
   DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 4, image->camera_alias, -1, SQLITE_TRANSIENT);
   DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 5, image->camera_maker, -1, SQLITE_TRANSIENT);
   DT_DEBUG_SQLITE3_BIND_TEXT(stmt, 6, image->exif_lens, -1, SQLITE_TRANSIENT);
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(1000000, image->exif_iso)));
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 7, fmaxf(0.0f, fminf(FLT_MAX, image->exif_iso)));
   DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 8, fmaxf(0.0f, fminf(1000000, image->exif_exposure)));
   DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 9, fmaxf(0.0f, fminf(1000000, image->exif_aperture)));
   DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 10, fmaxf(0.0f, fminf(1000000, image->exif_focal_length)));
   // 0: dontcare, 1: ldr, 2: raw
-  DT_DEBUG_SQLITE3_BIND_DOUBLE(
-      stmt, 9, dt_image_is_ldr(image) ? FOR_LDR : (dt_image_is_raw(image) ? FOR_RAW : FOR_HDR));
+  DT_DEBUG_SQLITE3_BIND_DOUBLE(stmt, 11,
+                               dt_image_is_ldr(image) ? FOR_LDR : (dt_image_is_raw(image) ? FOR_RAW : FOR_HDR));
 
   if(sqlite3_step(stmt) == SQLITE_DONE)
   {

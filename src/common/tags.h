@@ -16,8 +16,7 @@
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef DT_TAGS_H
-#define DT_TAGS_H
+#pragma once
 
 #include <glib.h>
 #include <sqlite3.h>
@@ -90,6 +89,9 @@ GList *dt_tag_get_list(gint imgid);
  *  the difference to dt_tag_get_attached() is that this one filters out the "darktable|" tags. */
 GList *dt_tag_get_hierarchical(gint imgid);
 
+/** get the subset of images from the selected ones that have a given tag attached */
+GList *dt_tag_get_images_from_selection(gint imgid, gint tagid);
+
 /** retrieves a list of suggested tags matching keyword. \param[in] keyword the keyword to search \param[out]
  * result a pointer to list populated with result. \return the count \note the limit of result is decided by
  * conf value "xxx" */
@@ -108,7 +110,6 @@ void dt_tag_reorganize(const gchar *source, const gchar *dest);
 /** make sure that main.used_tags has everything. to be used after changes to main.tagged_images */
 void dt_tag_update_used_tags();
 
-#endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

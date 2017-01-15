@@ -340,7 +340,7 @@ static void _path_points_recurs(float *p1, float *p2, double tmin, double tmax, 
 }
 
 /** find all self intersections in a path */
-static int _path_find_self_intersection(int *inter, int nb_corners, float *border, int border_count)
+static int _path_find_self_intersection(dt_masks_dynbuf_t *inter, int nb_corners, float *border, int border_count)
 {
   int inter_count = 0;
 
@@ -451,27 +451,27 @@ static int _path_find_self_intersection(int *inter, int nb_corners, float *borde
             // and we are sure that this portion doesn't include one of the shape extrema
             if(inter_count > 0)
             {
-              if((v[k] - i) * (inter[inter_count * 2 - 2] - inter[inter_count * 2 - 1]) > 0
-                 && inter[inter_count * 2 - 2] >= v[k] && inter[inter_count * 2 - 1] <= i)
+              if((v[k] - i) * ((int)dt_masks_dynbuf_get(inter, -2) - (int)dt_masks_dynbuf_get(inter, -1)) > 0
+                 && (int)dt_masks_dynbuf_get(inter, -2) >= v[k] && (int)dt_masks_dynbuf_get(inter, -1) <= i)
               {
                 // we find an self-intersection portion which include the last one
                 // we just update it
-                inter[inter_count * 2 - 2] = v[k];
-                inter[inter_count * 2 - 1] = i;
+                dt_masks_dynbuf_set(inter, -2, v[k]);
+                dt_masks_dynbuf_set(inter, -1, i);
               }
               else
               {
                 // we find a new self-intersection portion
-                inter[inter_count * 2] = v[k];
-                inter[inter_count * 2 + 1] = i;
+                dt_masks_dynbuf_add(inter, v[k]);
+                dt_masks_dynbuf_add(inter, i);
                 inter_count++;
               }
             }
             else
             {
               // we find a new self-intersection portion
-              inter[inter_count * 2] = v[k];
-              inter[inter_count * 2 + 1] = i;
+              dt_masks_dynbuf_add(inter, v[k]);
+              dt_masks_dynbuf_add(inter, i);
               inter_count++;
             }
           }
@@ -504,8 +504,9 @@ static int _path_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int
   double start2 = dt_get_wtime();
 
   float wd = pipe->iwidth, ht = pipe->iheight;
+  guint nb = g_list_length(form->points);
 
-  dt_masks_dynbuf_t *dpoints = NULL, *dborder = NULL;
+  dt_masks_dynbuf_t *dpoints = NULL, *dborder = NULL, *intersections = NULL;
 
   *points = NULL;
   *points_count = 0;
@@ -525,10 +526,18 @@ static int _path_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int
     }
   }
 
+  intersections = dt_masks_dynbuf_init(10 * nb, "path intersections");
+  if(intersections == NULL)
+  {
+    dt_masks_dynbuf_free(dpoints);
+    dt_masks_dynbuf_free(dborder);
+    return 0;
+  }
+
   // we store all points
   float dx, dy;
   dx = dy = 0.0f;
-  guint nb = g_list_length(form->points);
+
   if(source && nb > 0)
   {
     dt_masks_point_path_t *pt = (dt_masks_point_path_t *)g_list_nth_data(form->points, 0);
@@ -664,7 +673,6 @@ static int _path_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int
   start2 = dt_get_wtime();
 
   // we don't want the border to self-intersect
-  int *intersections = malloc((size_t)8 * nb * sizeof(int));
   int inter_count = 0;
   if(border)
   {
@@ -695,8 +703,8 @@ static int _path_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int
         // now we want to write the skipping zones
         for(int i = 0; i < inter_count; i++)
         {
-          int v = intersections[i * 2];
-          int w = intersections[i * 2 + 1];
+          int v = (dt_masks_dynbuf_buffer(intersections))[i * 2];
+          int w = (dt_masks_dynbuf_buffer(intersections))[ i * 2 + 1];
           if(v <= w)
           {
             (*border)[v * 2] = NAN;
@@ -724,14 +732,14 @@ static int _path_get_points_border(dt_develop_t *dev, dt_masks_form_t *form, int
         dt_print(DT_DEBUG_MASKS, "[masks %s] path_points end took %0.04f sec\n", form->name,
                  dt_get_wtime() - start2);
 //       start2 = dt_get_wtime();
-      free(intersections);
+      dt_masks_dynbuf_free(intersections);
       free(border_init);
       return 1;
     }
   }
 
   // if we failed, then free all and return
-  free(intersections);
+  dt_masks_dynbuf_free(intersections);
   free(border_init);
   free(*points);
   *points = NULL;
@@ -844,11 +852,17 @@ static int dt_path_events_mouse_scrolled(struct dt_iop_module_t *module, float p
     }
     else
     {
-      float amount = 1.03;
-      if(up) amount = 0.97;
+      float amount = 1.03f;
+      if(up) amount = 0.97f;
       guint nb = g_list_length(form->points);
-      if(gui->border_selected)
+      if(gui->border_selected || (state & GDK_SHIFT_MASK) == GDK_SHIFT_MASK)
       {
+        // do not exceed upper limit of 1.0
+        for(int k = 0; k < nb; k++)
+        {
+          dt_masks_point_path_t *point = (dt_masks_point_path_t *)g_list_nth_data(form->points, k);
+          if(amount > 1.0f && (point->border[0] > 1.0f || point->border[1] > 1.0f)) return 1;
+        }
         for(int k = 0; k < nb; k++)
         {
           dt_masks_point_path_t *point = (dt_masks_point_path_t *)g_list_nth_data(form->points, k);
@@ -857,13 +871,15 @@ static int dt_path_events_mouse_scrolled(struct dt_iop_module_t *module, float p
         }
         if(form->type & DT_MASKS_CLONE)
         {
-          const float masks_border = dt_conf_get_float("plugins/darkroom/spots/path_border");
-          dt_conf_set_float("plugins/darkroom/spots/path_border", masks_border * amount);
+          float masks_border = dt_conf_get_float("plugins/darkroom/spots/path_border");
+          masks_border = MAX(0.005f, MIN(masks_border * amount, 0.5f));
+          dt_conf_set_float("plugins/darkroom/spots/path_border", masks_border);
         }
         else
         {
-          const float masks_border = dt_conf_get_float("plugins/darkroom/masks/path/border");
-          dt_conf_set_float("plugins/darkroom/masks/path/border", masks_border * amount);
+          float masks_border = dt_conf_get_float("plugins/darkroom/masks/path/border");
+          masks_border = MAX(0.005f, MIN(masks_border * amount, 0.5f));
+          dt_conf_set_float("plugins/darkroom/masks/path/border", masks_border);
         }
       }
       else if(gui->edit_mode == DT_MASKS_EDIT_FULL)
@@ -885,10 +901,11 @@ static int dt_path_events_mouse_scrolled(struct dt_iop_module_t *module, float p
           by += (point1->corner[1] + point2->corner[1])
                 * (point1->corner[0] * point2->corner[1] - point2->corner[0] * point1->corner[1]);
         }
-        bx /= 3.0 * surf;
-        by /= 3.0 * surf;
+        bx /= 3.0f * surf;
+        by /= 3.0f * surf;
 
-        if(amount < 1.0 && surf < 0.00001 && surf > -0.00001) return 1;
+        if(amount < 1.0f && surf < 0.00001f && surf > -0.00001f) return 1;
+        if(amount > 1.0f && surf > 4.0f) return 1;
 
         // now we move each point
         for(int k = 0; k < nb; k++)
@@ -955,8 +972,6 @@ static int dt_path_events_button_pressed(struct dt_iop_module_t *module, float p
     // we don't want a form with less than 3 points
     if(g_list_length(form->points) < 4)
     {
-      // we remove the form
-      dt_masks_free_form(form);
       dt_masks_set_edit_mode(module, DT_MASKS_EDIT_FULL);
       dt_masks_iop_update(module);
       dt_control_queue_redraw_center();

@@ -21,7 +21,6 @@
 #include "bauhaus/bauhaus.h"
 #include "common/noiseprofiles.h"
 #include "common/opencl.h"
-#include "common/opencl.h"
 #include "control/control.h"
 #include "develop/imageop.h"
 #include "develop/imageop_math.h"
@@ -1420,19 +1419,19 @@ static int process_nlmeans_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop
 
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    if(buckets[k] != NULL) dt_opencl_release_mem_object(buckets[k]);
+    dt_opencl_release_mem_object(buckets[k]);
   }
-  if(dev_U2 != NULL) dt_opencl_release_mem_object(dev_U2);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_U2);
+  dt_opencl_release_mem_object(dev_tmp);
   return TRUE;
 
 error:
   for(int k = 0; k < NUM_BUCKETS; k++)
   {
-    if(buckets[k] != NULL) dt_opencl_release_mem_object(buckets[k]);
+    dt_opencl_release_mem_object(buckets[k]);
   }
-  if(dev_U2 != NULL) dt_opencl_release_mem_object(dev_U2);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_U2);
+  dt_opencl_release_mem_object(dev_tmp);
   dt_print(DT_DEBUG_OPENCL, "[opencl_denoiseprofile] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -1746,22 +1745,22 @@ static int process_wavelets_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_io
     dt_opencl_finish(devid);
 
 
-  if(dev_r != NULL) dt_opencl_release_mem_object(dev_r);
-  if(dev_m != NULL) dt_opencl_release_mem_object(dev_m);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
-  if(dev_filter != NULL) dt_opencl_release_mem_object(dev_filter);
+  dt_opencl_release_mem_object(dev_r);
+  dt_opencl_release_mem_object(dev_m);
+  dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_filter);
   for(int k = 0; k < max_scale; k++)
-    if(dev_detail[k] != NULL) dt_opencl_release_mem_object(dev_detail[k]);
+    dt_opencl_release_mem_object(dev_detail[k]);
   free(dev_detail);
   return TRUE;
 
 error:
-  if(dev_r != NULL) dt_opencl_release_mem_object(dev_r);
-  if(dev_m != NULL) dt_opencl_release_mem_object(dev_m);
-  if(dev_tmp != NULL) dt_opencl_release_mem_object(dev_tmp);
-  if(dev_filter != NULL) dt_opencl_release_mem_object(dev_filter);
+  dt_opencl_release_mem_object(dev_r);
+  dt_opencl_release_mem_object(dev_m);
+  dt_opencl_release_mem_object(dev_tmp);
+  dt_opencl_release_mem_object(dev_filter);
   for(int k = 0; k < max_scale; k++)
-    if(dev_detail[k] != NULL) dt_opencl_release_mem_object(dev_detail[k]);
+    dt_opencl_release_mem_object(dev_detail[k]);
   free(dev_detail);
   dt_print(DT_DEBUG_OPENCL, "[opencl_denoiseprofile] couldn't enqueue kernel! %d, devid %d\n", err, devid);
   return FALSE;
@@ -1872,7 +1871,7 @@ void init(dt_iop_module_t *module)
 {
   module->params = calloc(1, sizeof(dt_iop_denoiseprofile_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_denoiseprofile_params_t));
-  module->priority = 138; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 134; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_denoiseprofile_params_t);
   module->gui_data = NULL;
   module->data = NULL;

@@ -281,9 +281,9 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_red != NULL) dt_opencl_release_mem_object(dev_red);
-  if(dev_green != NULL) dt_opencl_release_mem_object(dev_green);
-  if(dev_blue != NULL) dt_opencl_release_mem_object(dev_blue);
+  dt_opencl_release_mem_object(dev_red);
+  dt_opencl_release_mem_object(dev_green);
+  dt_opencl_release_mem_object(dev_blue);
   dt_print(DT_DEBUG_OPENCL, "[opencl_channelmixer] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -415,7 +415,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_channelmixer_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_channelmixer_params_t));
   module->default_enabled = 0;
-  module->priority = 830; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 820; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_channelmixer_params_t);
   module->gui_data = NULL;
   dt_iop_channelmixer_params_t tmp = (dt_iop_channelmixer_params_t){ { 0, 0, 0, 1, 0, 0, 0 },

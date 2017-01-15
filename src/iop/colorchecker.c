@@ -18,6 +18,7 @@
 #include "bauhaus/bauhaus.h"
 #include "common/colorspaces.h"
 #include "common/opencl.h"
+#include "common/exif.h"
 #include "control/control.h"
 #include "develop/develop.h"
 #include "develop/imageop.h"
@@ -260,6 +261,20 @@ void init_presets(dt_iop_module_so_t *self)
   p.target_b[22] = p.source_b[22] = 9.5750093460083008;
   p.target_b[23] = p.source_b[23] = 41.285167694091797;
   dt_gui_presets_add_generic(_("it8 skin tones"), self->op, self->version(), &p, sizeof(p), 1);
+
+  // helmholtz/kohlrausch effect applied to black and white conversion.
+  // implemented by wmader as an iop and matched as a clut for increased
+  // flexibility. this was done using darktable-chart and this is copied
+  // from the resulting dtstyle output file:
+  const char *hk_params_input =
+    "9738b84231c098426fb8814234a82d422ac41d422e3fa04100004843f7daa24257e09a422a1a984225113842f89cc9410836ca4295049542ad1c9242887370427cb32b427c512242b5a40742545bd141808740412cc6964262e484429604c44100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000ef6d3bc152c2acc1ef6566c093a522c2e7d4e4c1a87c7cc100000000b4c4dd407af09e40d060df418afc7d421dadd0413ec5124097d79041fcba2642fc9f484183eb92415d6b7040fcdcdc41b8fe2f42b64a1740fc8612c1276defc144432ec100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000d237eb4022a72842f5639742396d1442a2660d411c338b40000000006e35ca408df2054289658d4132327a4118427741d4cf08c0f8a4d5c03abed7c13fac36c23b41a6c03c2230c07d5088c26caff7c1e0e9c6bff14ecec073b028c29e0accc10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000085f2b642a4ba9a423c9a8442a6493c428baf28425667b64100004843a836a142a84e9b4226719d421cb15d424c22ee4175fcca4211ae96426e6d9a4243878142ef45354222f82542629527420280ff416c2066417e3996420d838e424182e3410000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000fa370000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c8b700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004837000000000000c8b60000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018000000";
+  int params_len = 0;
+  uint8_t *hk_params = dt_exif_xmp_decode(
+      hk_params_input, strlen(hk_params_input), &params_len);
+  assert(params_len == sizeof(dt_iop_colorchecker_params_t));
+  assert(hk_params);
+  dt_gui_presets_add_generic(_("helmholtz/kohlrausch monochrome"), self->op, self->version(), hk_params, params_len, 1);
+  free(hk_params);
 }
 
 // fast logarithms stolen from paul mineiro http://fastapprox.googlecode.com/svn/trunk/fastapprox/src/fastonebigheader.h
@@ -504,7 +519,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
 
 error:
   free(params);
-  if(dev_params != NULL) dt_opencl_release_mem_object(dev_params);
+  dt_opencl_release_mem_object(dev_params);
   dt_print(DT_DEBUG_OPENCL, "[opencl_colorchecker] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -517,8 +532,8 @@ void commit_params(struct dt_iop_module_t *self, dt_iop_params_t *p1, dt_dev_pix
   dt_iop_colorchecker_params_t *p = (dt_iop_colorchecker_params_t *)p1;
   dt_iop_colorchecker_data_t *d = (dt_iop_colorchecker_data_t *)piece->data;
 
-  d->num_patches = p->num_patches;
-  for(int k=0;k<p->num_patches;k++)
+  d->num_patches = MIN(MAX_PATCHES, p->num_patches);
+  for(int k = 0; k < d->num_patches; k++)
   {
     d->source_Lab[3*k+0] = p->source_L[k];
     d->source_Lab[3*k+1] = p->source_a[k];
@@ -650,7 +665,7 @@ void gui_update(struct dt_iop_module_t *self)
       p->target_a[g->patch]*p->target_a[g->patch]+
       p->target_b[g->patch]*p->target_b[g->patch]);
   dt_bauhaus_slider_set(g->scale_C, Cout-Cin);
-  if(g->patch != g->drawn_patch) gtk_widget_queue_draw(g->area);
+  gtk_widget_queue_draw(g->area);
 }
 
 void init(dt_iop_module_t *module)
@@ -658,7 +673,7 @@ void init(dt_iop_module_t *module)
   module->params = calloc(1, sizeof(dt_iop_colorchecker_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_colorchecker_params_t));
   module->default_enabled = 0;
-  module->priority = 384; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 373; // module order created by iop_dependencies.py, do not edit!
   module->params_size = sizeof(dt_iop_colorchecker_params_t);
   module->gui_data = NULL;
   dt_iop_colorchecker_params_t tmp;
@@ -702,7 +717,7 @@ static void picker_callback(GtkWidget *button, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   if(darktable.gui->reset) return;
 
-  if(self->request_color_pick == DT_REQUEST_COLORPICK_OFF)
+  if(self->request_color_pick != DT_REQUEST_COLORPICK_MODULE)
     self->request_color_pick = DT_REQUEST_COLORPICK_MODULE;
   else
     self->request_color_pick = DT_REQUEST_COLORPICK_OFF;
@@ -722,6 +737,7 @@ static void target_L_callback(GtkWidget *slider, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   dt_iop_colorchecker_params_t *p = (dt_iop_colorchecker_params_t *)self->params;
   dt_iop_colorchecker_gui_data_t *g = (dt_iop_colorchecker_gui_data_t *)self->gui_data;
+  if(g->patch >= p->num_patches || g->patch < 0) return;
   p->target_L[g->patch] = p->source_L[g->patch] + dt_bauhaus_slider_get(slider);
   dt_dev_add_history_item(darktable.develop, self, TRUE);
 }
@@ -731,6 +747,7 @@ static void target_a_callback(GtkWidget *slider, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   dt_iop_colorchecker_params_t *p = (dt_iop_colorchecker_params_t *)self->params;
   dt_iop_colorchecker_gui_data_t *g = (dt_iop_colorchecker_gui_data_t *)self->gui_data;
+  if(g->patch >= p->num_patches || g->patch < 0) return;
   p->target_a[g->patch] = CLAMP(p->source_a[g->patch] + dt_bauhaus_slider_get(slider), -128.0, 128.0);
   const float Cin = sqrtf(
       p->source_a[g->patch]*p->source_a[g->patch] +
@@ -750,6 +767,7 @@ static void target_b_callback(GtkWidget *slider, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   dt_iop_colorchecker_params_t *p = (dt_iop_colorchecker_params_t *)self->params;
   dt_iop_colorchecker_gui_data_t *g = (dt_iop_colorchecker_gui_data_t *)self->gui_data;
+  if(g->patch >= p->num_patches || g->patch < 0) return;
   p->target_b[g->patch] = CLAMP(p->source_b[g->patch] + dt_bauhaus_slider_get(slider), -128.0, 128.0);
   const float Cin = sqrtf(
       p->source_a[g->patch]*p->source_a[g->patch] +
@@ -769,6 +787,7 @@ static void target_C_callback(GtkWidget *slider, gpointer user_data)
   dt_iop_module_t *self = (dt_iop_module_t *)user_data;
   dt_iop_colorchecker_params_t *p = (dt_iop_colorchecker_params_t *)self->params;
   dt_iop_colorchecker_gui_data_t *g = (dt_iop_colorchecker_gui_data_t *)self->gui_data;
+  if(g->patch >= p->num_patches || g->patch < 0) return;
   const float Cin = sqrtf(
       p->source_a[g->patch]*p->source_a[g->patch] +
       p->source_b[g->patch]*p->source_b[g->patch]);
@@ -831,15 +850,16 @@ static gboolean checker_draw(GtkWidget *widget, cairo_t *crf, gpointer user_data
       Lab.L = p->source_L[patch];
       Lab.a = p->source_a[patch];
       Lab.b = p->source_b[patch];
-      if((picked_mean[0] - Lab.L)*(picked_mean[0] - Lab.L) +
-         (picked_mean[1] - Lab.a)*(picked_mean[1] - Lab.a) +
-         (picked_mean[2] - Lab.b)*(picked_mean[2] - Lab.b) <
-         (picked_mean[0] - p->source_L[cells_x*bestj+besti])*
-         (picked_mean[0] - p->source_L[cells_x*bestj+besti])+
-         (picked_mean[1] - p->source_a[cells_x*bestj+besti])*
-         (picked_mean[1] - p->source_a[cells_x*bestj+besti])+
-         (picked_mean[2] - p->source_b[cells_x*bestj+besti])*
-         (picked_mean[2] - p->source_b[cells_x*bestj+besti]))
+      if((self->request_color_pick == DT_REQUEST_COLORPICK_MODULE)
+         && ((picked_mean[0] - Lab.L) * (picked_mean[0] - Lab.L)
+                 + (picked_mean[1] - Lab.a) * (picked_mean[1] - Lab.a)
+                 + (picked_mean[2] - Lab.b) * (picked_mean[2] - Lab.b)
+             < (picked_mean[0] - p->source_L[cells_x * bestj + besti])
+                       * (picked_mean[0] - p->source_L[cells_x * bestj + besti])
+                   + (picked_mean[1] - p->source_a[cells_x * bestj + besti])
+                         * (picked_mean[1] - p->source_a[cells_x * bestj + besti])
+                   + (picked_mean[2] - p->source_b[cells_x * bestj + besti])
+                         * (picked_mean[2] - p->source_b[cells_x * bestj + besti])))
       {
         besti = i;
         bestj = j;
@@ -874,16 +894,20 @@ static gboolean checker_draw(GtkWidget *widget, cairo_t *crf, gpointer user_data
     }
   }
 
+  dt_bauhaus_widget_set_quad_paint(
+      g->combobox_patch, dtgtk_cairo_paint_colorpicker,
+      (self->request_color_pick == DT_REQUEST_COLORPICK_MODULE ? CPF_ACTIVE : CPF_NONE));
+
   // highlight patch that is closest to picked colour,
   // or the one selected in the combobox.
-  if(self->request_color_pick == DT_REQUEST_COLORPICK_OFF)
+  if(self->request_color_pick != DT_REQUEST_COLORPICK_MODULE)
   {
     int i = dt_bauhaus_combobox_get(g->combobox_patch);
     besti = i % cells_x;
     bestj = i / cells_x;
     g->drawn_patch = cells_x * bestj + besti;
   }
-  else
+  else if(self->request_color_pick == DT_REQUEST_COLORPICK_MODULE)
   {
     // freshly picked, also select it in gui:
     int pick = self->request_color_pick;
@@ -931,7 +955,8 @@ static gboolean checker_motion_notify(GtkWidget *widget, GdkEventMotion *event,
   }
   const float mx = mouse_x * cells_x / (float)width;
   const float my = mouse_y * cells_y / (float)height;
-  int patch = CLAMP((int)mx + cells_x*(int)my, 0, p->num_patches-1);
+  const int patch = (int)mx + cells_x * (int)my;
+  if(patch < 0 || patch >= p->num_patches) return FALSE;
   char tooltip[1024];
   snprintf(tooltip, sizeof(tooltip),
       _("(%2.2f %2.2f %2.2f)\n"
@@ -997,7 +1022,10 @@ static gboolean checker_button_press(GtkWidget *widget, GdkEventButton *event,
     // shift-left while colour picking: replace source colour
     // if clicked outside the valid patches: add new one
     if(p->num_patches < 24 && (patch < 0 || patch >= p->num_patches))
-      patch = p->num_patches++;
+    {
+      p->num_patches = MIN(MAX_PATCHES, p->num_patches + 1);
+      patch = p->num_patches - 1;
+    }
     p->target_L[patch] = p->source_L[patch] = self->picked_color[0];
     p->target_a[patch] = p->source_a[patch] = self->picked_color[1];
     p->target_b[patch] = p->source_b[patch] = self->picked_color[2];
@@ -1048,7 +1076,7 @@ void gui_init(struct dt_iop_module_t *self)
     dt_bauhaus_combobox_add(g->combobox_patch, cboxentry);
   }
   self->request_color_pick = DT_REQUEST_COLORPICK_OFF;
-  dt_bauhaus_widget_set_quad_paint(g->combobox_patch, dtgtk_cairo_paint_colorpicker, CPF_ACTIVE);
+  dt_bauhaus_widget_set_quad_paint(g->combobox_patch, dtgtk_cairo_paint_colorpicker, CPF_NONE);
 
   g->scale_L = dt_bauhaus_slider_new_with_range(self, -100.0, 100.0, 1.0, 0.0f, 2);
   gtk_widget_set_tooltip_text(g->scale_L, _("lightness offset"));

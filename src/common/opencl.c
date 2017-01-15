@@ -21,11 +21,13 @@
 
 #include "common/opencl.h"
 #include "common/bilateralcl.h"
+#include "common/locallaplaciancl.h"
 #include "common/darktable.h"
 #include "common/dlopencl.h"
 #include "common/gaussian.h"
 #include "common/interpolation.h"
 #include "common/nvidia_gpus.h"
+#include "common/opencl_drivers_blacklist.h"
 #include "control/conf.h"
 #include "control/control.h"
 #include "develop/pixelpipe.h"
@@ -227,6 +229,14 @@ static int dt_opencl_device_init(dt_opencl_t *cl, const int dev, cl_device_id *d
   if(((type & CL_DEVICE_TYPE_CPU) == CL_DEVICE_TYPE_CPU) && !dt_conf_get_bool("opencl_use_cpu_devices"))
   {
     dt_print(DT_DEBUG_OPENCL, "[opencl_init] discarding CPU device %d `%s'.\n", k, infostr);
+    res = -1;
+    goto end;
+  }
+
+  if(dt_opencl_check_driver_blacklist(deviceversion) && !dt_conf_get_bool("opencl_disable_drivers_blacklist"))
+  {
+    dt_print(DT_DEBUG_OPENCL, "[opencl_init] discarding device %d `%s' because the driver `%s' is blacklisted.\n",
+             k, infostr, deviceversion);
     res = -1;
     goto end;
   }
@@ -695,6 +705,7 @@ finally:
     cl->bilateral = dt_bilateral_init_cl_global();
     cl->gaussian = dt_gaussian_init_cl_global();
     cl->interpolation = dt_interpolation_init_cl_global();
+    cl->local_laplacian = dt_local_laplacian_init_cl_global();
 
     char checksum[64];
     snprintf(checksum, sizeof(checksum), "%u", cl->crc);
@@ -939,7 +950,7 @@ error:
   dt_gaussian_free_cl(g);
   dt_free_align(buf);
   free(tea_states);
-  if(dev_mem != NULL) dt_opencl_release_mem_object(dev_mem);
+  dt_opencl_release_mem_object(dev_mem);
   return INFINITY;
 }
 
@@ -1447,11 +1458,24 @@ int dt_opencl_load_program(const int dev, const int prog, const char *filename, 
   char linkedfile[PATH_MAX] = { 0 };
   ssize_t linkedfile_len = 0;
 
+#if defined(_WIN32)
+  // No symlinks on Windows
+  // Have to figure out the name using the filename + md5sum
+  char dup[PATH_MAX] = { 0 };
+  snprintf(dup, sizeof(dup), "%s.%s", binname, md5sum);
+  FILE *cached = fopen_stat(dup, &cachedstat);
+  g_strlcpy(linkedfile, md5sum, sizeof(linkedfile));
+  linkedfile_len = strlen(md5sum);
+#else
   FILE *cached = fopen_stat(binname, &cachedstat);
+#endif
+
   if(cached)
   {
-
-    if((linkedfile_len = readlink(binname, linkedfile, sizeof(linkedfile) - 1)) > 0)
+#if !defined(_WIN32)
+    linkedfile_len = readlink(binname, linkedfile, sizeof(linkedfile) - 1);
+#endif // !defined(_WIN32)
+    if(linkedfile_len > 0)
     {
       linkedfile[linkedfile_len] = '\0';
 
@@ -1631,7 +1655,15 @@ int dt_opencl_build_program(const int dev, const int prog, const char *binname, 
           char dup[PATH_MAX] = { 0 };
           g_strlcpy(dup, binname, sizeof(dup));
           char *bname = basename(dup);
+#if defined(_WIN32)
+          //CreateSymbolicLink in Windows requires admin privileges, which we don't want/need
+          //store has using a simple filerename
+          char finalfilename[PATH_MAX] = { 0 };
+          snprintf(finalfilename, sizeof(finalfilename), "%s/%s.%s", cachedir, bname, md5sum);
+          rename(link_dest, finalfilename);
+#else
           if(symlink(md5sum, bname) != 0) goto ret;
+#endif //!defined(_WIN32)
           if(chdir(cwd) != 0) goto ret;
         }
 
@@ -1995,9 +2027,14 @@ void *dt_opencl_copy_host_to_device_rowpitch(const int devid, void *host, const 
 }
 
 
-void dt_opencl_release_mem_object(void *mem)
+void dt_opencl_release_mem_object(cl_mem mem)
 {
   if(!darktable.opencl->inited) return;
+
+  // the OpenCL specs are not absolutely clear if clReleaseMemObject(NULL) is a no-op. we take care of the
+  // case in a centralized way at this place
+  if(mem == NULL) return;
+
   (darktable.opencl->dlocl->symbols->dt_clReleaseMemObject)(mem);
 }
 

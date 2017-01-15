@@ -18,10 +18,14 @@
 #include "lua/call.h"
 #include "control/control.h"
 #include "lua/lua.h"
+#ifndef _WIN32
 #include <glib-unix.h>
+#endif
 #include <glib.h>
 #include <stdlib.h>
+#ifndef _WIN32
 #include <sys/select.h>
+#endif
 
 int dt_lua_check_print_error(lua_State* L, int result) 
 {
@@ -553,7 +557,7 @@ void dt_lua_async_call_alien_internal(const char * call_function, int line,lua_C
 void dt_lua_async_call_string_internal(const char* function, int line,const char* lua_string,int nresults,dt_lua_finish_callback cb, void*cb_data)
 {
 #ifdef _DEBUG
-  dt_print(DT_DEBUG_LUA,"LUA DEBUG : %s called from %s %d\n",__FUNCTION__,function,line);
+  dt_print(DT_DEBUG_LUA,"LUA DEBUG : %s called from %s %d, string %s\n",__FUNCTION__,function,line,lua_string);
 #endif
   string_call_data*data = malloc(sizeof(string_call_data));
   data->function = strdup(lua_string);
@@ -601,13 +605,14 @@ static int execute_cb(lua_State*L)
 
 static int sleep_cb(lua_State*L)
 {
-  const int delay = luaL_optint(L, 1, 0);
+  const int delay = luaL_optinteger(L, 1, 0);
   dt_lua_unlock();
   g_usleep(delay*1000);
   dt_lua_lock();
   return 0;
 }
 
+#if !defined (_WIN32)
 static int read_cb(lua_State*L)
 {
   luaL_checkudata(L,1,LUA_FILEHANDLE);
@@ -621,6 +626,7 @@ static int read_cb(lua_State*L)
   dt_lua_lock();
   return 0;
 }
+#endif
 
 typedef struct gtk_wrap_communication {
   GCond end_cond;
@@ -701,9 +707,11 @@ int dt_lua_init_call(lua_State *L)
   lua_pushcfunction(L,sleep_cb);
   lua_pushcclosure(L, dt_lua_type_member_common, 1);
   dt_lua_type_register_const_type(L, type_id, "sleep");
+#if !defined (_WIN32)
   lua_pushcfunction(L,read_cb);
   lua_pushcclosure(L, dt_lua_type_member_common, 1);
   dt_lua_type_register_const_type(L, type_id, "read");
+#endif
 
   lua_newtable(L);
   lua_setfield(L, LUA_REGISTRYINDEX, "dt_lua_bg_threads");

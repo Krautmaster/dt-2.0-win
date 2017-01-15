@@ -84,7 +84,7 @@ int groups()
 
 int flags()
 {
-  return IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_ONE_INSTANCE;
+  return IOP_FLAGS_SUPPORTS_BLENDING | IOP_FLAGS_ALLOW_TILING | IOP_FLAGS_ONE_INSTANCE;
 }
 
 int legacy_params(dt_iop_module_t *self, const void *const old_params, const int old_version,
@@ -224,11 +224,11 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
                         piece->pipe->dsc.processed_maximum[2]);
   for(int k = 0; k < 3; k++) piece->pipe->dsc.processed_maximum[k] = m;
 
-  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
+  dt_opencl_release_mem_object(dev_xtrans);
   return TRUE;
 
 error:
-  if(dev_xtrans != NULL) dt_opencl_release_mem_object(dev_xtrans);
+  dt_opencl_release_mem_object(dev_xtrans);
   dt_print(DT_DEBUG_OPENCL, "[opencl_highlights] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -1040,7 +1040,7 @@ void init(dt_iop_module_t *module)
   // module->data = malloc(sizeof(dt_iop_highlights_data_t));
   module->params = calloc(1, sizeof(dt_iop_highlights_params_t));
   module->default_params = calloc(1, sizeof(dt_iop_highlights_params_t));
-  module->priority = 61; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 59; // module order created by iop_dependencies.py, do not edit!
   module->default_enabled = 1;
   module->params_size = sizeof(dt_iop_highlights_params_t);
   module->gui_data = NULL;

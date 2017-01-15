@@ -590,9 +590,11 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
     {
       if(!dt_iop_is_hidden(module))
       {
+        gtk_widget_hide(module->expander);
         gtk_container_remove(
             GTK_CONTAINER(dt_ui_get_container(darktable.gui->ui, DT_UI_CONTAINER_PANEL_RIGHT_CENTER)),
             module->expander);
+        gtk_widget_destroy(module->widget);
         dt_iop_gui_cleanup_module(module);
       }
 
@@ -710,6 +712,9 @@ static void dt_dev_change_image(dt_develop_t *dev, const uint32_t imgid)
   // release pixel pipe mutices
   dt_pthread_mutex_unlock(&dev->preview_pipe_mutex);
   dt_pthread_mutex_unlock(&dev->pipe_mutex);
+
+  // update hint message
+  dt_collection_hint_message(darktable.collection);
 }
 
 static void film_strip_activated(const int imgid, void *data)
@@ -885,7 +890,12 @@ static void _darkroom_ui_favorite_presets_popupmenu(GtkWidget *w, gpointer user_
   if(darktable.gui->presets_popup_menu)
   {
     gtk_widget_show_all(GTK_WIDGET(darktable.gui->presets_popup_menu));
+
+#if GTK_CHECK_VERSION(3, 22, 0)
+    gtk_menu_popup_at_pointer(darktable.gui->presets_popup_menu, NULL);
+#else
     gtk_menu_popup(darktable.gui->presets_popup_menu, NULL, NULL, NULL, NULL, 0, 0);
+#endif
   }
   else
     dt_control_log(_("no userdefined presets for favorite modules were found"));
@@ -945,7 +955,11 @@ static void _darkroom_ui_apply_style_popupmenu(GtkWidget *w, gpointer user_data)
   /* if we got any styles, lets popup menu for selection */
   if(menu)
   {
+#if GTK_CHECK_VERSION(3, 22, 0)
+    gtk_menu_popup_at_pointer(GTK_MENU(menu), NULL);
+#else
     gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, 0);
+#endif
   }
   else
     dt_control_log(_("no styles have been created yet"));
@@ -1895,6 +1909,9 @@ void enter(dt_view_t *self)
   dt_view_filmstrip_prefetch();
 
   dt_collection_hint_message(darktable.collection);
+
+  // clean the undo list
+  dt_undo_clear(darktable.undo, DT_UNDO_HISTORY);
 }
 
 void leave(dt_view_t *self)
@@ -2374,6 +2391,9 @@ void init_key_accels(dt_view_t *self)
   dt_accel_register_view(self, NC_("accel", "image forward"), GDK_KEY_space, 0);
   dt_accel_register_view(self, NC_("accel", "image back"), GDK_KEY_BackSpace, 0);
 
+  // toggle raw overexposure indication
+  dt_accel_register_view(self, NC_("accel", "raw overexposed"), GDK_KEY_o, GDK_SHIFT_MASK);
+
   // toggle overexposure indication
   dt_accel_register_view(self, NC_("accel", "overexposed"), GDK_KEY_o, 0);
 
@@ -2447,6 +2467,10 @@ void connect_key_accels(dt_view_t *self)
 
   closure = g_cclosure_new(G_CALLBACK(skip_b_key_accel_callback), (gpointer)self->data, NULL);
   dt_accel_connect_view(self, "image back", closure);
+
+  // toggle raw overexposure indication
+  closure = g_cclosure_new(G_CALLBACK(_toolbox_toggle_callback), data->rawoverexposed.button, NULL);
+  dt_accel_connect_view(self, "raw overexposed", closure);
 
   // toggle overexposure indication
   closure = g_cclosure_new(G_CALLBACK(_toolbox_toggle_callback), data->overexposed.button, NULL);

@@ -183,7 +183,7 @@
 <synopsis>darktable [-d {all,cache,camctl,camsupport,control,dev,
                fswatch,input,lighttable,masks,memory,nan,
                opencl,perf,pwstorage,print,sql}]
-          [IMG_1234.{RAW,..}|image_folder]
+          [&lt;input file&gt;|&lt;image folder&gt;]
           [--version]
           [--disable-opencl]
           [--library &lt;library file&gt;]
@@ -217,7 +217,7 @@
 
           <varlistentry>
 
-            <term>IMG_1234.{RAW,..} | image_folder</term>
+            <term>&lt;input file&gt;|&lt;image folder&gt;</term>
 
             <listitem><para>
               You may optionally supply the filename of an image or the name of a folder
@@ -264,6 +264,14 @@
               you. You may also give <quote>:memory:</quote> as a library file in which case the
               database is kept in system memory&nbsp;&ndash; all changes are discarded when
               darktable terminates.
+            </para>
+
+            <para>
+              Whenever darktable starts, it will lock the library to the current user. It does
+              this by writing the current process identifier (PID) into a lock file
+              <quote>&lt;library file&gt;.lock</quote> next to the library specified. If
+              darktable finds an existing lock file for the library, it will terminate
+              immediately.
             </para></listitem>
 
           </varlistentry>
@@ -412,7 +420,7 @@
         <filename>darktable-cli</filename> is called with the following command line parameters:
       </para>
 
-<synopsis>darktable-cli &lt;input file&gt;
+<synopsis>darktable-cli &lt;input file&gt;|&lt;image folder&gt;
               [&lt;xmp file&gt;]
               &lt;output file&gt;
               [--width &lt;max width&gt;]
@@ -432,7 +440,8 @@
             <term>&lt;input file&gt;</term>
 
             <listitem><para>
-              The name of the input file to export.
+              The name of the input file to export or the name of an folder containing input
+              images which are to be exported.
             </para></listitem>
 
           </varlistentry>
@@ -444,7 +453,7 @@
             <listitem><para>
               The optional name of an XMP sidecar file containing the history stack data to be
               applied during export. If this option is not given darktable will search for an
-              XMP file that belongs to the given input file.
+              XMP file that belongs to the given input file(s).
             </para></listitem>
 
           </varlistentry>
@@ -456,7 +465,9 @@
             <listitem><para>
               The name of the output file. darktable derives the export file format from the
               file extension. You can also use all the variables available in darktable's export
-              module in the output filename.
+              module in the output filename (see <xref linkend="export_selected"/>). For obvious
+              reasons this is mandatory if you use the program on an image folder containing
+              multiple images.
             </para></listitem>
 
           </varlistentry>
@@ -639,97 +650,7 @@
 
     </sect2>
 
-    <sect2 status="final" id="darktable_viewer_commandline_parameters">
-
-      <title><filename>darktable-viewer</filename> binary</title>
-
-      <indexterm>
-        <primary>darktable-viewer</primary>
-      </indexterm>
-
-      <para>
-        This binary starts a stand-alone slideshow viewer that displays the images of your
-        current collection fullscreen. Press <emphasis>ESC</emphasis> to stop.
-      </para>
-
-      <para>
-        <filename>darktable-viewer</filename> is called with the following command line
-        parameters:
-      </para>
-
-<synopsis>darktable-viewer
-              [-h, --help]
-              [--random]
-              [--repeat]
-              [--core &lt;darktable options&gt;]</synopsis>
-
-      <para>
-        All parameters are optional. If started without parameters
-        <filename>darktable-viewer</filename> uses reasonable defaults.
-        <variablelist>
-
-          <varlistentry>
-
-            <term>-h, --help</term>
-
-            <listitem><para>
-              Gives usage information and terminates.
-            </para></listitem>
-
-          </varlistentry>
-
-          <varlistentry>
-
-            <term>--random</term>
-
-            <listitem><para>
-              Displays images in random instead of the default sequential order.
-            </para></listitem>
-
-          </varlistentry>
-
-          <varlistentry>
-
-            <term>--repeat</term>
-
-            <listitem><para>
-              Continues the slideshow in an endless loop instead of terminating after the last
-              image.
-            </para></listitem>
-
-          </varlistentry>
-
-          <varlistentry>
-
-            <term>--core &lt;darktable options&gt;</term>
-
-            <listitem><para>
-              All command line parameters following <quote>--core</quote> are passed to the
-              darktable core and handled as standard parameters. See
-              <xref linkend="darktable_commandline_parameters"/> for a detailed description.
-            </para></listitem>
-
-          </varlistentry>
-
-        </variablelist>
-      </para>
-
-      <para>
-        <filename>darktable-viewer</filename> uses OpenGL to produce soft transitions between
-        images. Although OpenGL and OpenCL (see <xref linkend="darktable_and_opencl"/>) are
-        designed to cooperate flawlessly, there have been reports about problems with certain
-        setups. If <filename>darktable-viewer</filename> crashes upon startup, please try to use
-        it without OpenCL support:
-      </para>
-
-      <para>
-<programlisting>darktable-viewer --core --disable-opencl
-</programlisting>
-      </para>
-
-    </sect2>
-
-    <sect2 status="draft" id="darktable_chart_commandline_parameters">
+    <sect2 status="final" id="darktable_chart_commandline_parameters">
 
       <title><filename>darktable-chart</filename> binary</title>
 
@@ -755,9 +676,10 @@
               [&lt;reference cgats/it8 or Lab pfm file&gt;]</synopsis>
 
       <para>
-        All parameters are optional, however, if you want to supply the second file name you also need to supply
-        the first one etc. Starting <filename>darktable-chart</filename> this way opens
-        up a special GUI (details can be found in <xref linkend="darktable_chart"/>).
+        All parameters are optional, however, if you want to supply the second file name you
+        also need to supply the first one etc. Starting <filename>darktable-chart</filename>
+        this way opens a special GUI (details can be found in
+        <xref linkend="darktable_chart"/>).
         <variablelist>
 
           <varlistentry>
@@ -843,7 +765,7 @@
 
           <varlistentry>
 
-            <term>&lt;output dtstyle file&lt;</term>
+            <term>&lt;output dtstyle file&gt;</term>
 
             <listitem><para>
               The name of the style file to be created.

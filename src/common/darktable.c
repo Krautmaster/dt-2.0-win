@@ -35,6 +35,7 @@
 #include "common/fswatch.h"
 #include "common/pwstorage/pwstorage.h"
 #include "common/selection.h"
+#include "common/system_signal_handling.h"
 #ifdef HAVE_GPHOTO2
 #include "common/camera_control.h"
 #endif
@@ -74,30 +75,24 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <unistd.h>
-#ifndef __WIN32__
-#include <sys/wait.h>
-#endif
 #include <locale.h>
+
 #if defined(__SSE__)
 #include <xmmintrin.h>
 #endif
+
 #ifdef HAVE_GRAPHICSMAGICK
 #include <magick/api.h>
 #endif
+
 #include "dbus.h"
 
 #if defined(__SUNOS__)
 #include <sys/varargs.h>
 #endif
+
 #ifdef _OPENMP
 #include <omp.h>
-#endif
-
-#ifdef __linux__
-#include <sys/prctl.h>
-#ifndef PR_SET_PTRACER
-#define PR_SET_PTRACER 0x59616d61
-#endif
 #endif
 
 #ifdef USE_LUA
@@ -140,85 +135,6 @@ static int usage(const char *argv0)
   printf("\n");
   return 1;
 }
-
-#if !defined __APPLE__ && !defined __WIN32__
-typedef void(dt_signal_handler_t)(int);
-// static dt_signal_handler_t *_dt_sigill_old_handler = NULL;
-static dt_signal_handler_t *_dt_sigsegv_old_handler = NULL;
-#endif
-
-#if(defined(__FreeBSD_version) && (__FreeBSD_version < 800071)) || (defined(OpenBSD) && (OpenBSD < 201305))  \
-    || defined(__SUNOS__)
-static int dprintf(int fd, const char *fmt, ...) __attribute__((format(printf, 2, 3)))
-{
-  va_list ap;
-  FILE *f = fdopen(fd, "a");
-  va_start(ap, fmt);
-  int rc = vfprintf(f, fmt, ap);
-  fclose(f);
-  va_end(ap);
-  return rc;
-}
-#endif
-
-#if !defined __APPLE__ && !defined __WIN32__
-static void _dt_sigsegv_handler(int param)
-{
-  pid_t pid;
-  gchar *name_used;
-  int fout;
-  gboolean delete_file = FALSE;
-  char datadir[PATH_MAX] = { 0 };
-
-  if((fout = g_file_open_tmp("darktable_bt_XXXXXX.txt", &name_used, NULL)) == -1)
-    fout = STDOUT_FILENO; // just print everything to stdout
-
-  dprintf(fout, "this is %s reporting a segfault:\n\n", darktable_package_string);
-
-  if(fout != STDOUT_FILENO) close(fout);
-
-  dt_loc_get_datadir(datadir, sizeof(datadir));
-  gchar *pid_arg = g_strdup_printf("%d", (int)getpid());
-  gchar *comm_arg = g_strdup_printf("%s/gdb_commands", datadir);
-  gchar *log_arg = g_strdup_printf("set logging on %s", name_used);
-
-  if((pid = fork()) != -1)
-  {
-    if(pid)
-    {
-#ifdef __linux__
-      // Allow the child to ptrace us
-      prctl(PR_SET_PTRACER, pid, 0, 0, 0);
-#endif
-      waitpid(pid, NULL, 0);
-      g_printerr("backtrace written to %s\n", name_used);
-    }
-    else
-    {
-      if(execlp("gdb", "gdb", darktable.progname, pid_arg, "-batch", "-ex", log_arg, "-x", comm_arg, NULL))
-      {
-        delete_file = TRUE;
-        g_printerr("an error occurred while trying to execute gdb. please check if gdb is installed on your "
-                   "system.\n");
-      }
-    }
-  }
-  else
-  {
-    delete_file = TRUE;
-    g_printerr("an error occurred while trying to execute gdb.\n");
-  }
-
-  if(delete_file) g_unlink(name_used);
-  g_free(pid_arg);
-  g_free(comm_arg);
-  g_free(log_arg);
-  g_free(name_used);
-
-  /* pass it further to the old handler*/
-  _dt_sigsegv_old_handler(param);
-}
-#endif
 
 gboolean dt_supported_image(const gchar *filename)
 {
@@ -432,7 +348,7 @@ static void dt_codepaths_init()
   }
 }
 
-int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
+int dt_init(int argc, char *argv[], const gboolean init_gui, const gboolean load_data, lua_State *L)
 {
 #ifndef __WIN32__
   if(getuid() == 0 || geteuid() == 0)
@@ -445,9 +361,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   _MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 #endif
 
-#if !defined __APPLE__ && !defined __WIN32__
-  _dt_sigsegv_old_handler = signal(SIGSEGV, &_dt_sigsegv_handler);
-#endif
+  dt_set_signal_handlers();
 
 #include "is_supported_platform.h"
 
@@ -483,7 +397,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
     {
       // check if DARKTABLE_SHAREDIR is already in there
       gboolean found = FALSE;
-      gchar **tokens = g_strsplit(xdg_data_dirs, ":", 0);
+      gchar **tokens = g_strsplit(xdg_data_dirs, G_SEARCHPATH_SEPARATOR_S, 0);
       // xdg_data_dirs is neither NULL nor empty => tokens != NULL
       for(char **iter = tokens; *iter != NULL; iter++)
         if(!strcmp(DARKTABLE_SHAREDIR, *iter))
@@ -495,7 +409,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
       if(found)
         set_env = FALSE;
       else
-        new_xdg_data_dirs = g_strjoin(":", DARKTABLE_SHAREDIR, xdg_data_dirs, NULL);
+        new_xdg_data_dirs = g_strjoin(G_SEARCHPATH_SEPARATOR_S, DARKTABLE_SHAREDIR, xdg_data_dirs, NULL);
     }
     else
     {
@@ -579,6 +493,11 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
 #else
                "  normal build\n"
 #endif
+#if defined(__SSE2__) && defined(__SSE__)
+               "  SSE2 optimized codepath enabled\n"
+#else
+               "  SSE2 optimized codepath disabled\n"
+#endif
 #ifdef _OPENMP
                "  OpenMP support enabled\n"
 #else
@@ -613,6 +532,12 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
                "  GraphicsMagick support enabled\n"
 #else
                "  GraphicsMagick support disabled\n"
+#endif
+
+#ifdef HAVE_OPENEXR
+               "  OpenEXR support enabled\n"
+#else
+               "  OpenEXR support disabled\n"
 #endif
                ,
                darktable_package_string,
@@ -831,10 +756,10 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   const gchar *lang = dt_conf_get_string("ui_last/gui_language");
   if(lang != NULL && lang[0] != '\0')
   {
-    setenv("LANGUAGE", lang, 1);
+    g_setenv("LANGUAGE", lang, 1);
     if(setlocale(LC_ALL, lang) != NULL) gtk_disable_setlocale();
     setlocale(LC_MESSAGES, lang);
-    setenv("LANG", lang, 1);
+    g_setenv("LANG", lang, 1);
   }
   g_free((gchar *)lang);
 
@@ -845,7 +770,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   darktable.color_profiles = dt_colorspaces_init();
 
   // initialize the database
-  darktable.db = dt_database_init(dbfilename_from_command);
+  darktable.db = dt_database_init(dbfilename_from_command, load_data);
   if(darktable.db == NULL)
   {
     printf("ERROR : cannot open database\n");
@@ -853,6 +778,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
   }
   else if(!dt_database_get_lock_acquired(darktable.db))
   {
+    gboolean image_loaded_elsewhere = FALSE;
 #ifndef MAC_INTEGRATION
     // send the images to the other instance via dbus
     fprintf(stderr, "trying to open the images in the running instance\n");
@@ -866,13 +792,16 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
       if(filename == NULL) continue;
       if(!connection) connection = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
       // ... and send it to the running instance of darktable
-      g_dbus_connection_call_sync(connection, "org.darktable.service", "/darktable",
-                                  "org.darktable.service.Remote", "Open", g_variant_new("(s)", filename),
-                                  NULL, G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL);
+      image_loaded_elsewhere = g_dbus_connection_call_sync(connection, "org.darktable.service", "/darktable",
+                                                           "org.darktable.service.Remote", "Open",
+                                                           g_variant_new("(s)", filename), NULL,
+                                                           G_DBUS_CALL_FLAGS_NONE, -1, NULL, NULL) != NULL;
       g_free(filename);
     }
     if(connection) g_object_unref(connection);
 #endif
+
+    if(!image_loaded_elsewhere) dt_database_show_error(darktable.db);
 
     return 1;
   }
@@ -927,6 +856,9 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
 #ifdef HAVE_GRAPHICSMAGICK
   /* GraphicsMagick init */
   InitializeMagick(darktable.progname);
+
+  // *SIGH*
+  dt_set_signal_handlers();
 #endif
 
   darktable.opencl = (dt_opencl_t *)calloc(1, sizeof(dt_opencl_t));
@@ -986,7 +918,7 @@ int dt_init(int argc, char *argv[], const int init_gui, lua_State *L)
     darktable.lib = (dt_lib_t *)calloc(1, sizeof(dt_lib_t));
     dt_lib_init(darktable.lib);
 
-    dt_control_load_config(darktable.control);
+    dt_gui_gtk_load_config();
   }
 
   dt_control_gui_mode_t mode = DT_LIBRARY;
@@ -1092,7 +1024,6 @@ void dt_cleanup()
     dt_ctl_switch_mode_to(DT_MODE_NONE);
     dt_dbus_destroy(darktable.dbus);
 
-    dt_control_write_config(darktable.control);
     dt_control_shutdown(darktable.control);
 
     dt_lib_cleanup(darktable.lib);

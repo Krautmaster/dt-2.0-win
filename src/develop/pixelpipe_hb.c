@@ -217,7 +217,7 @@ void dt_dev_pixelpipe_create_nodes(dt_dev_pixelpipe_t *pipe, dt_develop_t *dev)
       piece->enabled = module->enabled;
       piece->request_histogram = DT_REQUEST_ONLY_IN_GUI;
       piece->histogram_params.roi = NULL;
-      piece->histogram_params.bins_count = 64;
+      piece->histogram_params.bins_count = 256;
       piece->histogram_stats.bins_count = 0;
       piece->histogram_stats.pixels = 0;
       piece->colors
@@ -478,6 +478,9 @@ static int pixelpipe_picker_helper(dt_iop_module_t *module, const dt_iop_roi_t *
   for(int k = 0; k < 4; k += 2) box[k] = MIN(width - 1, MAX(0, box[k]));
   for(int k = 1; k < 4; k += 2) box[k] = MIN(height - 1, MAX(0, box[k]));
 
+  // safety check: area needs to have minimum 1 pixel width and height
+  if(box[2] - box[0] < 1 || box[3] - box[1] < 1) return 1;
+
   return 0;
 }
 
@@ -517,8 +520,8 @@ static void pixelpipe_picker_cl(int devid, dt_iop_module_t *module, dt_iop_buffe
   origin[1] = box[1];
   origin[2] = 0;
 
-  region[0] = box[2] - box[0] + 1;
-  region[1] = box[3] - box[1] + 1;
+  region[0] = box[2] - box[0];
+  region[1] = box[3] - box[1];
   region[2] = 1;
 
   float *pixel;
@@ -873,7 +876,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            if(cl_mem_input != NULL) dt_opencl_release_mem_object(cl_mem_input);
+            dt_opencl_release_mem_object(cl_mem_input);
             dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
@@ -943,7 +946,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            if(cl_mem_input != NULL) dt_opencl_release_mem_object(cl_mem_input);
+            dt_opencl_release_mem_object(cl_mem_input);
             dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
@@ -995,7 +998,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
           if(pipe->shutdown)
           {
-            if(cl_mem_input != NULL) dt_opencl_release_mem_object(cl_mem_input);
+            dt_opencl_release_mem_object(cl_mem_input);
             dt_pthread_mutex_unlock(&pipe->busy_mutex);
             return 1;
           }
@@ -1138,7 +1141,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
         if(pipe->shutdown)
         {
-          if(cl_mem_input) dt_opencl_release_mem_object(cl_mem_input);
+          dt_opencl_release_mem_object(cl_mem_input);
           dt_pthread_mutex_unlock(&pipe->busy_mutex);
           return 1;
         }
@@ -1184,14 +1187,14 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
 
             if(pipe->shutdown)
             {
-              if(cl_mem_input != NULL) dt_opencl_release_mem_object(cl_mem_input);
+              dt_opencl_release_mem_object(cl_mem_input);
               dt_pthread_mutex_unlock(&pipe->busy_mutex);
               return 1;
             }
           }
 
           /* we can now release cl_mem_input */
-          if(cl_mem_input != NULL) dt_opencl_release_mem_object(cl_mem_input);
+          dt_opencl_release_mem_object(cl_mem_input);
           cl_mem_input = NULL;
           // we speculate on the next plug-in to possibly copy back cl_mem_output to output,
           // so we're not just yet invalidating the (empty) output cache line.
@@ -1693,13 +1696,19 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         return 1;
       }
 
-      if(strcmp(module->op, "gamma") && bpp == sizeof(float) * 4)
+      if(strcmp(module->op, "gamma") == 0)
       {
+        dt_pthread_mutex_unlock(&pipe->busy_mutex);
+        goto post_process_collect_info;
+      }
+
 #ifdef HAVE_OPENCL
-        if(*cl_mem_output != NULL)
-          dt_opencl_copy_device_to_host(pipe->devid, *output, *cl_mem_output, roi_out->width, roi_out->height,
-                                        bpp);
+      if(*cl_mem_output != NULL)
+        dt_opencl_copy_device_to_host(pipe->devid, *output, *cl_mem_output, roi_out->width, roi_out->height, bpp);
 #endif
+
+      if((*out_format)->datatype == TYPE_FLOAT && (*out_format)->channels == 4)
+      {
         int hasinf = 0, hasnan = 0;
         float min[3] = { FLT_MAX };
         float max[3] = { FLT_MIN };
@@ -1727,10 +1736,41 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         if(hasinf)
           fprintf(stderr, "[dev_pixelpipe] module `%s' outputs non-finite floats! [%s]\n", module_label,
                   _pipe_type_to_str(pipe->type));
-        fprintf(stderr, "[dev_pixelpipe] module `%s' min: (%f; %f; %f) max: (%f; %f; %f) [%s]\n",
-                module_label, min[0], min[1], min[2], max[0], max[1], max[2], _pipe_type_to_str(pipe->type));
+        fprintf(stderr, "[dev_pixelpipe] module `%s' min: (%f; %f; %f) max: (%f; %f; %f) [%s]\n", module_label,
+                min[0], min[1], min[2], max[0], max[1], max[2], _pipe_type_to_str(pipe->type));
         g_free(module_label);
       }
+      else if((*out_format)->datatype == TYPE_FLOAT && (*out_format)->channels == 1)
+      {
+        int hasinf = 0, hasnan = 0;
+        float min = FLT_MAX;
+        float max = FLT_MIN;
+
+        for(int k = 0; k < roi_out->width * roi_out->height; k++)
+        {
+          float f = ((float *)(*output))[k];
+          if(isnan(f))
+            hasnan = 1;
+          else if(isinf(f))
+            hasinf = 1;
+          else
+          {
+            min = fmin(f, min);
+            max = fmax(f, max);
+          }
+        }
+        module_label = dt_history_item_get_name(module);
+        if(hasnan)
+          fprintf(stderr, "[dev_pixelpipe] module `%s' outputs NaNs! [%s]\n", module_label,
+                  _pipe_type_to_str(pipe->type));
+        if(hasinf)
+          fprintf(stderr, "[dev_pixelpipe] module `%s' outputs non-finite floats! [%s]\n", module_label,
+                  _pipe_type_to_str(pipe->type));
+        fprintf(stderr, "[dev_pixelpipe] module `%s' min: (%f) max: (%f) [%s]\n", module_label, min, max,
+                _pipe_type_to_str(pipe->type));
+        g_free(module_label);
+      }
+
       dt_pthread_mutex_unlock(&pipe->busy_mutex);
     }
 
@@ -1978,7 +2018,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
         box[3] = roi_out->height - 1;
       }
       dev->histogram_max = 0;
-      memset(dev->histogram, 0, sizeof(uint32_t) * 4 * 64);
+      memset(dev->histogram, 0, sizeof(uint32_t) * 4 * 256);
 
       {
         uint8_t *pixel = (uint8_t *)*output;
@@ -1986,7 +2026,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
           for(int i = box[0]; i <= box[2]; i += 4)
           {
             uint8_t rgb[3];
-            for(int k = 0; k < 3; k++) rgb[k] = pixel[4 * j * roi_out->width + 4 * i + 2 - k] >> 2;
+            for(int k = 0; k < 3; k++) rgb[k] = pixel[4 * j * roi_out->width + 4 * i + 2 - k];
 
             for(int k = 0; k < 3; k++) dev->histogram[4 * rgb[k] + k]++;
             uint8_t lum = MAX(MAX(rgb[0], rgb[1]), rgb[2]);
@@ -1995,7 +2035,7 @@ static int dt_dev_pixelpipe_process_rec(dt_dev_pixelpipe_t *pipe, dt_develop_t *
       }
 
       // don't count <= 0 pixels
-      for(int k = 19; k < 4 * 64; k += 4)
+      for(int k = 19; k < 4 * 256; k += 4)
         dev->histogram_max = dev->histogram_max > dev->histogram[k] ? dev->histogram_max : dev->histogram[k];
 
       // calculate the waveform histogram. since this is drawn pixel by pixel we have to do it in the correct
@@ -2151,7 +2191,7 @@ static int dt_dev_pixelpipe_process_rec_and_backcopy(dt_dev_pixelpipe_t *pipe, d
   dt_pthread_mutex_lock(&pipe->busy_mutex);
   if(ret)
   {
-    if(*cl_mem_output != 0) dt_opencl_release_mem_object(*cl_mem_output);
+    dt_opencl_release_mem_object(*cl_mem_output);
     *cl_mem_output = NULL;
   }
   else
@@ -2242,7 +2282,7 @@ restart:
   if(oclerr || (err && pipe->opencl_error))
   {
     // Well, there were errors -> we might need to free an invalid opencl memory object
-    if(cl_mem_out != NULL) dt_opencl_release_mem_object(cl_mem_out);
+    dt_opencl_release_mem_object(cl_mem_out);
     dt_opencl_unlock_device(pipe->devid); // release opencl resource
     dt_pthread_mutex_lock(&pipe->busy_mutex);
     pipe->opencl_enabled = 0; // disable opencl for this pipe

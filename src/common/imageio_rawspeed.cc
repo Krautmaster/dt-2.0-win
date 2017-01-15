@@ -119,9 +119,12 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
   if(!img->exif_inited) (void)dt_exif_read(img, filename);
 
 #ifdef __WIN32__
-  const size_t len = strlen(filename) + 1;
-  wchar_t filen[len];
-  mbstowcs(filen, filename, len);
+  const size_t len = mbstowcs(NULL, filename, 0) + 1;
+  wchar_t filen[MAX_PATH];
+  if(len > MAX_PATH) return DT_IMAGEIO_FILE_NOT_FOUND;
+  size_t convertedchars = 0;
+  convertedchars = mbstowcs(filen, filename, sizeof(filen) / sizeof(wchar_t));
+  if(convertedchars == (size_t)-1) return DT_IMAGEIO_FILE_NOT_FOUND;
   FileReader f(filen);
 #else
   char filen[PATH_MAX] = { 0 };
@@ -244,6 +247,12 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
 
     if((r->getDataType() != TYPE_USHORT16) && (r->getDataType() != TYPE_FLOAT32)) return DT_IMAGEIO_FILE_CORRUPTED;
 
+    if((r->getBpp() != sizeof(uint16_t)) && (r->getBpp() != sizeof(float))) return DT_IMAGEIO_FILE_CORRUPTED;
+
+    if((r->getDataType() == TYPE_USHORT16) && (r->getBpp() != sizeof(uint16_t))) return DT_IMAGEIO_FILE_CORRUPTED;
+
+    if((r->getDataType() == TYPE_FLOAT32) && (r->getBpp() != sizeof(float))) return DT_IMAGEIO_FILE_CORRUPTED;
+
     const float cpp = r->getCpp();
     if(cpp != 1) return DT_IMAGEIO_FILE_CORRUPTED;
 
@@ -293,7 +302,15 @@ dt_imageio_retval_t dt_imageio_open_rawspeed(dt_image_t *img, const char *filena
     {
       img->flags &= ~DT_IMAGE_LDR;
       img->flags |= DT_IMAGE_RAW;
-      if(r->getDataType() == TYPE_FLOAT32) img->flags |= DT_IMAGE_HDR;
+      if(r->getDataType() == TYPE_FLOAT32)
+      {
+        img->flags |= DT_IMAGE_HDR;
+
+        // we assume that image is normalized before.
+        // FIXME: not true for hdrmerge DNG's.
+        for(int k = 0; k < 4; k++) img->buf_dsc.processed_maximum[k] = 1.0f;
+      }
+
       // special handling for x-trans sensors
       if(img->buf_dsc.filters == 9u)
       {

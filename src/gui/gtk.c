@@ -477,9 +477,56 @@ static gboolean borders_scrolled(GtkWidget *widget, GdkEventScroll *event, gpoin
   return TRUE;
 }
 
+int dt_gui_gtk_load_config()
+{
+  GtkWidget *widget = dt_ui_main_window(darktable.gui->ui);
+  dt_conf_set_int("ui_last/view", DT_MODE_NONE);
+  int width = dt_conf_get_int("ui_last/window_w");
+  int height = dt_conf_get_int("ui_last/window_h");
+  gint x = MAX(0, dt_conf_get_int("ui_last/window_x"));
+  gint y = MAX(0, dt_conf_get_int("ui_last/window_y"));
+  gtk_window_move(GTK_WINDOW(widget), x, y);
+  gtk_window_resize(GTK_WINDOW(widget), width, height);
+  int fullscreen = dt_conf_get_bool("ui_last/fullscreen");
+  if(fullscreen)
+    gtk_window_fullscreen(GTK_WINDOW(widget));
+  else
+  {
+    gtk_window_unfullscreen(GTK_WINDOW(widget));
+    int maximized = dt_conf_get_bool("ui_last/maximized");
+    if(maximized)
+      gtk_window_maximize(GTK_WINDOW(widget));
+    else
+      gtk_window_unmaximize(GTK_WINDOW(widget));
+  }
+  return 0;
+}
+
+int dt_gui_gtk_write_config()
+{
+  GtkWidget *widget = dt_ui_main_window(darktable.gui->ui);
+  GtkAllocation allocation;
+  gtk_widget_get_allocation(widget, &allocation);
+  gint x, y;
+  gtk_window_get_position(GTK_WINDOW(widget), &x, &y);
+  dt_conf_set_int("ui_last/window_x", x);
+  dt_conf_set_int("ui_last/window_y", y);
+  dt_conf_set_int("ui_last/window_w", allocation.width);
+  dt_conf_set_int("ui_last/window_h", allocation.height);
+  dt_conf_set_bool("ui_last/maximized",
+                   (gdk_window_get_state(gtk_widget_get_window(widget)) & GDK_WINDOW_STATE_MAXIMIZED));
+  dt_conf_set_bool("ui_last/fullscreen",
+                   (gdk_window_get_state(gtk_widget_get_window(widget)) & GDK_WINDOW_STATE_FULLSCREEN));
+
+  return 0;
+}
+
 void dt_gui_gtk_quit()
 {
   GtkWindow *win = GTK_WINDOW(dt_ui_main_window(darktable.gui->ui));
+
+  // Write out windows dimension before miminizing
+  dt_gui_gtk_write_config();
   gtk_window_iconify(win);
 
   GtkWidget *widget;
@@ -997,7 +1044,11 @@ static void configure_ppd_dpi(dt_gui_gtk_t *gui)
   }
   else
   {
+#ifndef GDK_WINDOWING_QUARTZ
     gui->ppd = gtk_widget_get_scale_factor(widget);
+#else
+    gui->ppd = dt_osx_get_ppd();
+#endif
     if(gui->ppd < 0.0)
     {
       gui->ppd = 1.0;
@@ -1301,6 +1352,21 @@ void dt_ui_toggle_panels_visibility(struct dt_ui_t *ui)
 
   /* store new state */
   dt_conf_set_int(key, state);
+}
+
+void dt_ui_notify_user()
+{
+  if(darktable.gui && !gtk_window_is_active(GTK_WINDOW(dt_ui_main_window(darktable.gui->ui))))
+  {
+    gtk_window_set_urgency_hint(GTK_WINDOW(dt_ui_main_window(darktable.gui->ui)), TRUE);
+#ifdef MAC_INTEGRATION
+#ifdef GTK_TYPE_OSX_APPLICATION
+    gtk_osxapplication_attention_request(g_object_new(GTK_TYPE_OSX_APPLICATION, NULL), INFO_REQUEST);
+#else
+    gtkosx_application_attention_request(g_object_new(GTKOSX_TYPE_APPLICATION, NULL), INFO_REQUEST);
+#endif
+#endif
+  }
 }
 
 void dt_ui_restore_panels(dt_ui_t *ui)
@@ -1670,13 +1736,21 @@ gboolean dt_gui_show_standalone_yes_no_dialog(const char *title, const char *mar
 
   result_t result = {.result = RESULT_NONE, .window = window};
 
-  GtkWidget *button = gtk_button_new_with_label(no_text);
-  g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(_yes_no_button_handler_no), &result);
-  gtk_box_pack_start(GTK_BOX(hbox), button, TRUE, TRUE, 0);
+  GtkWidget *button;
 
-  button = gtk_button_new_with_label(yes_text);
-  g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(_yes_no_button_handler_yes), &result);
-  gtk_box_pack_start(GTK_BOX(hbox), button, TRUE, TRUE, 0);
+  if(no_text)
+  {
+    button = gtk_button_new_with_label(no_text);
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(_yes_no_button_handler_no), &result);
+    gtk_box_pack_start(GTK_BOX(hbox), button, TRUE, TRUE, 0);
+  }
+
+  if(yes_text)
+  {
+    button = gtk_button_new_with_label(yes_text);
+    g_signal_connect(G_OBJECT(button), "clicked", G_CALLBACK(_yes_no_button_handler_yes), &result);
+    gtk_box_pack_start(GTK_BOX(hbox), button, TRUE, TRUE, 0);
+  }
 
   gtk_widget_show_all(window);
   gtk_main();

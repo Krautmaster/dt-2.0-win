@@ -15,8 +15,9 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef DT_IMAGE_H
-#define DT_IMAGE_H
+
+#pragma once
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -170,7 +171,7 @@ typedef struct dt_image_t
   /* needed in exposure iop for Deflicker */
   uint16_t raw_black_level;
   uint16_t raw_black_level_separate[4];
-  uint16_t raw_white_point;
+  uint32_t raw_white_point;
 
   /* needed to fix some manufacturers madness */
   uint32_t fuji_rotation_pos;
@@ -291,7 +292,6 @@ char *dt_image_get_audio_path_from_path(const char *image_path);
 char *dt_image_get_text_path(const int32_t imgid);
 char *dt_image_get_text_path_from_path(const char *image_path);
 
-#endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;

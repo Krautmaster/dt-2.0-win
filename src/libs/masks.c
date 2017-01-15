@@ -853,7 +853,7 @@ static void _tree_selection_change(GtkTreeSelection *selection, dt_lib_masks_t *
     return;
   }
 
-  // else, we create a new from group with the selection and display it
+  // else, we create a new form group with the selection and display it
   GtkTreeModel *model = gtk_tree_view_get_model(GTK_TREE_VIEW(self->treeview));
   dt_masks_form_t *grp = dt_masks_create(DT_MASKS_GROUP);
   GList *items = g_list_first(gtk_tree_selection_get_selected_rows(selection, NULL));
@@ -909,7 +909,6 @@ static void _tree_selection_change(GtkTreeSelection *selection, dt_lib_masks_t *
   dt_masks_form_t *grp2 = dt_masks_create(DT_MASKS_GROUP);
   grp2->formid = 0;
   dt_masks_group_ungroup(grp2, grp);
-  dt_masks_free_form(grp);
   dt_masks_change_form_gui(grp2);
   darktable.develop->form_gui->edit_mode = DT_MASKS_EDIT_FULL;
   dt_control_queue_redraw_center();
@@ -1166,7 +1165,12 @@ static int _tree_button_pressed(GtkWidget *treeview, GdkEventButton *event, dt_l
     gtk_menu_shell_append(menu, item);
 
     gtk_widget_show_all(GTK_WIDGET(menu));
+
+#if GTK_CHECK_VERSION(3, 22, 0)
+    gtk_menu_popup_at_pointer(GTK_MENU(menu), (GdkEvent *)event);
+#else
     gtk_menu_popup(GTK_MENU(menu), NULL, NULL, NULL, NULL, 0, gdk_event_get_time((GdkEvent *)event));
+#endif
 
     return 1;
   }

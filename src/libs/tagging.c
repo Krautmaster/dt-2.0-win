@@ -194,9 +194,21 @@ static void detach_selected_tag(dt_lib_module_t *self, dt_lib_tagging_t *d)
   if(tagid <= 0) return;
 
   imgsel = dt_view_get_image_to_act_on();
+  GList *affected_images = dt_tag_get_images_from_selection(imgsel, tagid);
 
   dt_tag_detach(tagid, imgsel);
-  dt_image_synch_xmp(imgsel);
+
+  // we have to check the conf option as dt_image_synch_xmp() doesn't when called for a single image
+  if(dt_conf_get_bool("write_sidecar_files"))
+  {
+    for(GList *image_iter = affected_images; image_iter; image_iter = g_list_next(image_iter))
+    {
+      int imgid = GPOINTER_TO_INT(image_iter->data);
+      dt_image_synch_xmp(imgid);
+    }
+  }
+
+  g_list_free(affected_images);
 
   dt_control_signal_raise(darktable.signals, DT_SIGNAL_TAG_CHANGED);
 }
@@ -366,7 +378,7 @@ static void import_button_clicked(GtkButton *button, gpointer user_data)
     if(count < 0)
       dt_control_log(_("error importing tags"));
     else
-      dt_control_log(_("%ld tags imported"), count);
+      dt_control_log(_("%zd tags imported"), count);
     g_free(filename);
     g_free(dirname);
   }
@@ -404,7 +416,7 @@ static void export_button_clicked(GtkButton *button, gpointer user_data)
     if(count < 0)
       dt_control_log(_("error exporting tags"));
     else
-      dt_control_log(_("%ld tags exported"), count);
+      dt_control_log(_("%zd tags exported"), count);
     g_free(filename);
     g_free(dirname);
   }

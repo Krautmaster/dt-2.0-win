@@ -336,7 +336,7 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
       int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
 
       // process unaligned pixels
-      for(; i < alignment; i++, out++, in++)
+      for(; i < alignment && i < roi_out->width; i++, out++, in++)
         *out = CLAMP(film_rgb_f[FCxtrans(j, i, roi_out, xtrans)] - *in, 0.0f, 1.0f);
 
       const __m128 film[3] = { _mm_set_ps(film_rgb_f[FCxtrans(j, i + 3, roi_out, xtrans)],
@@ -390,7 +390,7 @@ void process_sse2(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, c
       int alignment = ((4 - (j * roi_out->width & (4 - 1))) & (4 - 1));
 
       // process unaligned pixels
-      for(; i < alignment; i++, out++, in++)
+      for(; i < alignment && i < roi_out->width; i++, out++, in++)
         *out = CLAMP(film_rgb_f[FC(j + roi_out->y, i + roi_out->x, filters)] - *in, 0.0f, 1.0f);
 
       const __m128 film = _mm_set_ps(film_rgb_f[FC(j + roi_out->y, roi_out->x + i + 3, filters)],
@@ -491,7 +491,7 @@ int process_cl(struct dt_iop_module_t *self, dt_dev_pixelpipe_iop_t *piece, cl_m
   return TRUE;
 
 error:
-  if(dev_color != NULL) dt_opencl_release_mem_object(dev_color);
+  dt_opencl_release_mem_object(dev_color);
   dt_print(DT_DEBUG_OPENCL, "[opencl_invert] couldn't enqueue kernel! %d\n", err);
   return FALSE;
 }
@@ -537,7 +537,7 @@ void init(dt_iop_module_t *module)
   module->default_enabled = 0;
   module->params_size = sizeof(dt_iop_invert_params_t);
   module->gui_data = NULL;
-  module->priority = 30; // module order created by iop_dependencies.py, do not edit!
+  module->priority = 29; // module order created by iop_dependencies.py, do not edit!
 }
 
 void cleanup(dt_iop_module_t *module)

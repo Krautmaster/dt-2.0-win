@@ -15,8 +15,8 @@
     You should have received a copy of the GNU General Public License
     along with darktable.  If not, see <http://www.gnu.org/licenses/>.
 */
-#ifndef DT_OPENCL_H
-#define DT_OPENCL_H
+
+#pragma once
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -97,6 +97,7 @@ typedef struct dt_opencl_device_t
 } dt_opencl_device_t;
 
 struct dt_bilateral_cl_global_t;
+struct dt_local_laplacian_cl_global_t;
 /**
  * main struct, stored in darktable.opencl.
  * holds pointers to all
@@ -133,6 +134,9 @@ typedef struct dt_opencl_t
 
   // global kernels for interpolation resampling.
   struct dt_interpolation_cl_global_t *interpolation;
+
+  // global kernels for local laplacian filter.
+  struct dt_local_laplacian_cl_global_t *local_laplacian;
 } dt_opencl_t;
 
 /** internally calls dt_clGetDeviceInfo, and takes care of memory allocation
@@ -280,7 +284,7 @@ void *dt_opencl_alloc_device_buffer(const int devid, const size_t size);
 
 void *dt_opencl_alloc_device_buffer_with_flags(const int devid, const size_t size, const int flags);
 
-void dt_opencl_release_mem_object(void *mem);
+void dt_opencl_release_mem_object(cl_mem mem);
 
 void *dt_opencl_map_buffer(const int devid, cl_mem buffer, const int blocking, const int flags, size_t offset,
                            size_t size);
@@ -439,8 +443,6 @@ static inline void dt_opencl_events_profiling(const int devid, const int aggrega
 }
 #endif
 
-
-#endif
 // modelines: These editor modelines have been set for all relevant files by tools/update_modelines.sh
 // vim: shiftwidth=2 expandtab tabstop=2 cindent
 // kate: tab-indents: off; indent-width 2; replace-tabs on; indent-mode cstyle; remove-trailing-spaces modified;
